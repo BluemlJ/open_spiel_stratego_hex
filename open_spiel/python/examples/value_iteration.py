@@ -20,6 +20,7 @@ from __future__ import print_function
 
 from absl import app
 from absl import flags
+import six
 
 from open_spiel.python.algorithms import value_iteration
 import pyspiel
@@ -35,7 +36,7 @@ def play_tic_tac_toe():
   print("Solving the game; depth_limit = {}".format(-1))
   values = value_iteration.value_iteration(game, -1, 0.01)
 
-  for state, value in values.items():
+  for state, value in six.iteritems(values):
     print("")
     print(str(state))
     print("Value = {}".format(value))

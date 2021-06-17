@@ -24,12 +24,10 @@
 namespace open_spiel {
 
 DataLoggerJsonLines::DataLoggerJsonLines(const std::string& path,
-                                         const std::string& name, bool flush,
-                                         const std::string& mode,
-                                         absl::Time start_time)
-    : fd_(absl::StrFormat("%s/%s.jsonl", path, name), mode),
+                                         const std::string& name, bool flush)
+    : fd_(absl::StrFormat("%s/%s.jsonl", path, name), "w"),
       flush_(flush),
-      start_time_(start_time) {}
+      start_time_(absl::Now()) {}
 
 void DataLoggerJsonLines::Write(DataLogger::Record record) {
   static absl::TimeZone utc = absl::UTCTimeZone();

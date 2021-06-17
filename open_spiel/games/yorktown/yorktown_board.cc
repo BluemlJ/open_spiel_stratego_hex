@@ -25,7 +25,6 @@
 namespace open_spiel {
 namespace yorktown {
 
-// Returns a string representation for a color
 std::string ColorToString(Color c) {
   switch (c) {
     case Color::kRed:
@@ -40,7 +39,6 @@ std::string ColorToString(Color c) {
   }
 }
 
-// Returns the piece type given the easier char representation of a piece
 absl::optional<PieceType> PieceTypeFromChar(char c) {
   switch (toupper(c)) {
     case '_':
@@ -75,7 +73,6 @@ absl::optional<PieceType> PieceTypeFromChar(char c) {
   }
 }
 
-// Returns a string representation of the given piece type
 std::string PieceTypeToString(PieceType p) {
   switch (p) {
     case PieceType::kEmpty:
@@ -112,7 +109,6 @@ std::string PieceTypeToString(PieceType p) {
   }
 }
 
-// Maps the strados char representation to a piece type
 absl::optional<PieceType> PieceTypeFromStraDos(char c) {
   switch (toupper(c)) {
     case 'A':
@@ -161,7 +157,6 @@ absl::optional<PieceType> PieceTypeFromStraDos(char c) {
   }
 }
 
-// Maps the piece type to a strados notation char, for this the color or the piece is also necessary
 std::string PieceTypeToStradosString(PieceType p, Color c) {
   switch (p) {
     case PieceType::kEmpty:
@@ -198,7 +193,6 @@ std::string PieceTypeToStradosString(PieceType p, Color c) {
   }
 }
 
-//Method within the piece construct
 std::string Piece::ToString(Color c) const {
   std::string base = PieceTypeToString(type);
   if (type == PieceType::kEmpty) return "  ";
@@ -215,7 +209,6 @@ std::string Piece::ToString(Color c) const {
   }
 }
 
-//Method within the piece construct, this time for strados notation
 std::string Piece::ToStraDosString(Color c) const {
   if(type == PieceType::kLake) return PieceTypeToStradosString(type, Color::kBlue);
   if (c == Color::kEmpty){
@@ -230,9 +223,8 @@ std::string Piece::ToStraDosString(Color c) const {
   }
 }
 
-// Returns a square given its file and rank (a7 -> Square Nr. 6)
 absl::optional<Square> SquareFromString(const std::string &s) {
-  if (s.size() != 2) return chess_common::kInvalidSquare;
+  if (s.size() != 2) return chess_common::InvalidSquare();
   auto file = ParseFile(s[0]);
   auto rank = ParseRank(s[1]);
 
@@ -240,7 +232,6 @@ absl::optional<Square> SquareFromString(const std::string &s) {
   return std::nullopt;
 }
 
-// String representation for the move construct 
 std::string Move::ToString() const {
   std::string extra;
   if (piece == kEmptyPiece){
@@ -279,9 +270,25 @@ YorktownBoard<kBoardSize>::YorktownBoard()
 
 template <uint32_t kBoardSize>
 absl::optional<YorktownBoard<kBoardSize>>
-
-// Creates a board based on a StraDos3 string (see header)
 YorktownBoard<kBoardSize>::BoardFromStraDos3(const std::string &straDos) {
+   /* An StraDos2 file includes the starting position of a board in notation similar to Fen.
+   * Each figure has its own identifier with A as the identifier for an empty field
+   * Eg. a position is described:
+   * FEBMBEFEEFBGIBHIBEDBGJDDDHCGJGDHDLIFKDDHAA__AA__AAAA__AA__AASTPQNSQPTSUPWPVRPXPURNQONNQSNVPTNQRRTYUP
+   * 
+   * I update this notation to StraDos3 which is more similar to FEN with some additions to StraDos2. In StraDos3 
+   * each position can be described not only the starting position. The positions of the pieces are described like in StraDos2
+   * but Upper/Lowecase indicates if a piece is public knowledge to both players. Further I add two counters, first for the acitve player,
+   * second for the total number of moves 
+   * 
+   * Eg. a position is described:
+   * 
+   * 
+   * Board is described from rank : (10) to rank 1, and files from A to K without J. 
+   * Lakes are described as _.
+   * 
+   * Moves are defined with with id, source and target. Only the startposition is defined as a string.
+   */
 
   YorktownBoard board;
 
@@ -292,7 +299,6 @@ YorktownBoard<kBoardSize>::BoardFromStraDos3(const std::string &straDos) {
     return std::nullopt;
   }
 
-  // Part 1 piece configuration
   std::string &piece_configuration = straDos_parts[0];
 
   std::string side_to_move = straDos_parts[1];
@@ -337,7 +343,7 @@ YorktownBoard<kBoardSize>::BoardFromStraDos3(const std::string &straDos) {
 
   board.SetLivingPieces(living);
 
-  //Part 2 current player represented by color 
+
 
   if (side_to_move == "r") {
     board.SetToPlay(Color::kRed);
@@ -348,14 +354,11 @@ YorktownBoard<kBoardSize>::BoardFromStraDos3(const std::string &straDos) {
     return std::nullopt;
   }
 
-  //Part 3 ply count
-
   board.SetMovenumber(move_number);
 
   return board;
 }
 
-// Method to find a vector of all pieces equals the defined piece type
 template <uint32_t kBoardSize>
 std::vector<Square> YorktownBoard<kBoardSize>::find(const Piece &piece) const {
   std::vector<Square> l;
@@ -370,7 +373,6 @@ std::vector<Square> YorktownBoard<kBoardSize>::find(const Piece &piece) const {
   return l;
 }
 
-// Returns the neighbour field pieces of a specific square
 template <uint32_t kBoardSize>
 std::array<Piece, 4> YorktownBoard<kBoardSize>::neighbours(const Square &square) const {
   std::array<Piece, 4> l = {kEmptyPiece, kEmptyPiece, kEmptyPiece, kEmptyPiece};
@@ -406,7 +408,6 @@ std::array<Piece, 4> YorktownBoard<kBoardSize>::neighbours(const Square &square)
   return l;
 }
 
-// Generates all legal moves of the current position and returns it at the given pointer
 template <uint32_t kBoardSize>
 void YorktownBoard<kBoardSize>::GenerateLegalMoves(
     const MoveYieldFn &yield) const {
@@ -508,8 +509,38 @@ void YorktownBoard<kBoardSize>::GenerateLegalMoves(
 #undef YIELD
 }
 
+template <uint32_t kBoardSize>
+bool YorktownBoard<kBoardSize>::HasSufficientMaterial() const {
+    
+  // Try to detect these conditions.
+  // 1. Flags is in Bombs
+  // 2. no Miners on the opposite site
 
-//parses a move from string to the move construct
+  // 1. 
+  bool redFlagInBombs = true;
+  bool redMinersGone = false;
+  bool blueFlagInBombs = true;
+  bool blueMinersGone = false;
+
+  std::array<Piece,4> foo = neighbours(find(Piece{Color::kRed, PieceType::kFlag}).front());
+  for(Piece p : foo){
+    if (p.type != PieceType::kBomb) redFlagInBombs = false;
+  }
+
+  foo = neighbours(find(Piece{Color::kBlue, PieceType::kFlag}).front());
+  for(Piece p : foo){
+    if (p.type != PieceType::kBomb) blueFlagInBombs = false;
+  }
+
+  //2. 
+  if(find(Piece{Color::kRed, PieceType::kMiner}).empty()) redMinersGone = true;
+  if(find(Piece{Color::kBlue, PieceType::kMiner}).empty()) blueMinersGone = true;
+
+  if(redFlagInBombs && blueMinersGone && blueFlagInBombs && redMinersGone) return false;
+  else return true;
+
+}
+
 template <uint32_t kBoardSize>
 absl::optional<Move> YorktownBoard<kBoardSize>::ParseMove(
     const std::string &move) const {
@@ -695,7 +726,6 @@ void YorktownBoard<kBoardSize>::ApplyMove(const Move &move) {
   SetToPlay(OppColor(to_play_));
 }
 
-// Returns the board as a string representation from a specific perspective
 template <uint32_t kBoardSize>
 std::string YorktownBoard<kBoardSize>::DebugString(Color c, bool onlyBoard) const {
   std::string s; 
@@ -747,7 +777,6 @@ std::string YorktownBoard<kBoardSize>::DebugString(Color c, bool onlyBoard) cons
   return s;
 }
 
-// The same as DebugString but with StraDos Notation
 template <uint32_t kBoardSize>
 std::string YorktownBoard<kBoardSize>::DebugStringStraDos(Color c, bool onlyBoard) const {
   std::string s;
@@ -846,7 +875,6 @@ std::string YorktownBoard<kBoardSize>::ToString(Color c) const {
 
   return strados;
 }
-
 template <uint32_t kBoardSize>
 std::string YorktownBoard<kBoardSize>::ToStraDos3(Color c) const {
   // Example StraDos FEBMBEFEEFbgiBHIBEDBGJDDDHCGJGDhdlIFKDDHAA__AA__AAAA__AA__AASTPQNSQPTSUPWPVrpXPURNqonNQSNVPTNQRRTYup r 20
@@ -920,17 +948,24 @@ template class YorktownBoard<10>;
 YorktownBoard<10> MakeDefaultBoard() {
   auto maybe_board = YorktownBoard<10>::BoardFromStraDos3(
       "FEBMBEFEEFBGIBHIBEDBGJDDDHCGJGDHDLIFKDDHAA__AA__AAAA__AA__AASTQQNSQPTSUPWPVRPXPURNQONNQSNVPTNQRRTYUP r 0");
+  //maybe_board->SetLivingPieces({1,1,8,5,4,4,4,3,2,1,1,6,1,1,8,5,4,4,4,3,2,1,1,6});
   SPIEL_CHECK_TRUE(maybe_board);
   return *maybe_board;
 }
 
 YorktownBoard<10> MakeDefaultBoard(std::string strados3) {
   auto maybe_board = YorktownBoard<10>::BoardFromStraDos3(strados3);
+  //maybe_board->SetLivingPieces({1,1,8,5,4,4,4,3,2,1,1,6,1,1,8,5,4,4,4,3,2,1,1,6});
   SPIEL_CHECK_TRUE(maybe_board);
   return *maybe_board;
 }
 
-
+YorktownBoard<10> MakeBarrageBoard(std::string strados3) {
+  auto maybe_board = YorktownBoard<10>::BoardFromStraDos3(strados3);
+  //maybe_board->SetLivingPieces({1,1,2,1,0,0,0,0,0,1,1,1,1,1,2,1,0,0,0,0,0,1,1,1});
+  SPIEL_CHECK_TRUE(maybe_board);
+  return *maybe_board;
+}
 
 }  // namespace yorktown
 }  // namespace open_spiel

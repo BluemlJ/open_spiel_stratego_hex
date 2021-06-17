@@ -59,8 +59,10 @@ DOWNLOAD_CACHE_DIR=${DOWNLOAD_CACHE_DIR:-$DEFAULT_DOWNLOAD_CACHE_DIR}
 # metadata and we do not use Git within DeepMind, so it's hard to maintain.
 
 # Note that this needs Git intalled, so we check for that.
-if [[ ! -x `which git` ]]; then
-  echo "Did not find git, attempting to install it."
+
+git --version 2>&1 >/dev/null
+GIT_IS_AVAILABLE=$?
+if [ $GIT_IS_AVAILABLE -ne 0 ]; then #...
   if [[ "$OSTYPE" == "linux-gnu" ]]; then
     sudo apt-get install git
   elif [[ "$OSTYPE" == "darwin"* ]]; then  # Mac OSX
@@ -76,7 +78,7 @@ fi
 # the OpenSpiel team do not control.
 # Feel free to upgrade the version after having checked it works.
 
-[[ -d "./pybind11" ]] || git clone -b smart_holder --single-branch --depth 1 https://github.com/pybind/pybind11.git
+[[ -d "./pybind11" ]] || git clone -b 'v2.6.2' --single-branch --depth 1 https://github.com/pybind/pybind11.git
 # The official https://github.com/dds-bridge/dds.git seems to not accept PR,
 # so we have forked it.
 [[ -d open_spiel/games/bridge/double_dummy_solver ]] || \
@@ -84,12 +86,12 @@ fi
   open_spiel/games/bridge/double_dummy_solver
 
 if [[ ! -d open_spiel/abseil-cpp ]]; then
-  git clone -b '20200923.3' --single-branch --depth 1 https://github.com/abseil/abseil-cpp.git open_spiel/abseil-cpp
+  git clone -b '20200923.1' --single-branch --depth 1 https://github.com/abseil/abseil-cpp.git open_spiel/abseil-cpp
 fi
 
 # Optional dependencies.
 DIR="open_spiel/games/hanabi/hanabi-learning-environment"
-if [[ ${OPEN_SPIEL_BUILD_WITH_HANABI:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
+if [[ ${BUILD_WITH_HANABI:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
   git clone -b 'master' --single-branch --depth 15 https://github.com/deepmind/hanabi-learning-environment.git ${DIR}
   # We checkout a specific CL to prevent future breakage due to changes upstream
   # The repository is very infrequently updated, thus the last 15 commits should
@@ -103,42 +105,47 @@ fi
 # http://www.computerpokercompetition.org/downloads/code/competition_server/project_acpc_server_v1.0.42.tar.bz2
 # with the code compiled as C++ within a namespace.
 DIR="open_spiel/games/universal_poker/acpc"
-if [[ ${OPEN_SPIEL_BUILD_WITH_ACPC:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
+if [[ ${BUILD_WITH_ACPC:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
   git clone -b 'master' --single-branch --depth 1  https://github.com/jblespiau/project_acpc_server.git ${DIR}
 fi
 
 # Add EIGEN template library for linear algebra.
 # http://eigen.tuxfamily.org/index.php?title=Main_Page
 DIR="open_spiel/eigen/libeigen"
-if [[ ${OPEN_SPIEL_BUILD_WITH_EIGEN:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
+if [[ ${BUILD_WITH_EIGEN:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
   git clone -b '3.3.7' --single-branch --depth 1  https://gitlab.com/libeigen/eigen.git ${DIR}
 fi
 
 # This GitHub repository contains Nathan Sturtevant's state of the art
 # Hearts program xinxin.
 DIR="open_spiel/bots/xinxin/hearts"
-if [[ ${OPEN_SPIEL_BUILD_WITH_XINXIN:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
+if [[ ${BUILD_WITH_XINXIN:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
   git clone -b 'master' --single-branch --depth 1  https://github.com/nathansttt/hearts.git ${DIR}
 fi
 
 # This GitHub repository contains bots from the RoShamBo Programming Competition
 DIR="open_spiel/bots/roshambo/roshambo"
-if [[ ${OPEN_SPIEL_BUILD_WITH_ROSHAMBO:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
+if [[ ${BUILD_WITH_ROSHAMBO:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
   git clone -b 'open_spiel' --single-branch --depth 1  https://github.com/jhtschultz/roshambo.git ${DIR}
-fi
-
-# This GitHub repository allows for serialization of custom C++ objects.
-DIR="open_spiel/libnop/libnop"
-if [[ ${OPEN_SPIEL_BUILD_WITH_LIBNOP:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
-  git clone -b 'master' --single-branch --depth 1  https://github.com/google/libnop.git ${DIR}
 fi
 
 # Add libtorch (PyTorch C++ API).
 # This downloads the precompiled binaries available from the pytorch website.
 DIR="open_spiel/libtorch/libtorch"
-if [[ ${OPEN_SPIEL_BUILD_WITH_LIBTORCH:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
+if [[ ${BUILD_WITH_LIBTORCH:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
+  # CPU-only
+  DOWNLOAD_URL="https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-1.5.1%2Bcpu.zip"
+
+  # Uncomment one of the following if you want GPU support with CUDA:
+  # # CUDA 9.2
+  # DOWNLOAD_URL="https://download.pytorch.org/libtorch/cu92/libtorch-cxx11-abi-shared-with-deps-1.5.1%2Bcu92.zip"
+  # # CUDA 10.1
+  # DOWNLOAD_URL="https://download.pytorch.org/libtorch/cu101/libtorch-cxx11-abi-shared-with-deps-1.5.1%2Bcu101.zip"
+  # # CUDA 10.2
+  # DOWNLOAD_URL="https://download.pytorch.org/libtorch/cu102/libtorch-cxx11-abi-shared-with-deps-1.5.1.zip"
+
   DOWNLOAD_FILE="${DOWNLOAD_CACHE_DIR}/libtorch.zip"
-  [[ -f "${DOWNLOAD_FILE}" ]] || wget --show-progress -O "${DOWNLOAD_FILE}" "${OPEN_SPIEL_BUILD_WITH_LIBTORCH_DOWNLOAD_URL}"
+  [[ -f "${DOWNLOAD_FILE}" ]] || wget --show-progress -O "${DOWNLOAD_FILE}" "$DOWNLOAD_URL"
   unzip "${DOWNLOAD_FILE}" -d "open_spiel/libtorch/"
 fi
 
@@ -146,9 +153,9 @@ fi
 # This downloads the precompiled binaries available from the official website.
 # https://developers.google.com/optimization/install/cpp/
 DIR="open_spiel/ortools"
-if [[ ${OPEN_SPIEL_BUILD_WITH_ORTOOLS:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
+if [[ ${BUILD_WITH_ORTOOLS:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
   DOWNLOAD_FILE="${DOWNLOAD_CACHE_DIR}/ortools.tar.gz"
-  [[ -f "${DOWNLOAD_FILE}" ]] || wget --show-progress -O "${DOWNLOAD_FILE}" "${OPEN_SPIEL_BUILD_WITH_ORTOOLS_DOWNLOAD_URL}"
+  [[ -f "${DOWNLOAD_FILE}" ]] || wget --show-progress -O "${DOWNLOAD_FILE}" "${BUILD_WITH_ORTOOLS_DOWNLOAD_URL}"
   mkdir "$DIR"
   tar -xzf "${DOWNLOAD_FILE}" --strip 1 -C "$DIR"
 fi
@@ -156,15 +163,15 @@ fi
 # 2. Install other required system-wide dependencies
 
 # Install Julia if required and not present already.
-if [[ ${OPEN_SPIEL_BUILD_WITH_JULIA:-"OFF"} == "ON" ]]; then
+if [[ ${BUILD_WITH_JULIA:-"OFF"} == "ON" ]]; then
   # Check that Julia is in the path.
-  if [[ ! -x `which julia` ]] || [ "$(julia -e 'println(VERSION >= v"1.6.1")')" == "false" ]
+  if [[ ! -x `which julia` ]]
   then
-    echo -e "\e[33mWarning: julia not in your PATH or its too old. Trying \$HOME/.local/bin\e[0m"
-    PATH=${HOME}/.local/bin:${PATH}
+    echo -e "\e[33mWarning: julia not in your PATH. Trying \$HOME/.local/bin\e[0m"
+    PATH=${PATH}:${HOME}/.local/bin
   fi
 
-  if which julia >/dev/null && [ "$(julia -e 'println(VERSION >= v"1.6.1")')" == "true" ] ; then
+  if which julia >/dev/null; then
     JULIA_VERSION_INFO=`julia --version`
     echo -e "\e[33m$JULIA_VERSION_INFO is already installed.\e[0m"
   else
@@ -182,14 +189,14 @@ if [[ ${OPEN_SPIEL_BUILD_WITH_JULIA:-"OFF"} == "ON" ]]; then
       curl https://raw.githubusercontent.com/abelsiqueira/jill/master/jill.sh -o jill.sh
       mv jill.sh $JULIA_INSTALLER
     fi
-    bash $JULIA_INSTALLER -y -v 1.6.1
+    JULIA_VERSION=1.3.1 bash $JULIA_INSTALLER -y
+    # Should install in $HOME/.local/bin which was added to the path above
+    [[ -x `which julia` ]] || die "julia not found PATH after install."
     # This is needed on Ubuntu 19.10 and above, see:
     # https://github.com/deepmind/open_spiel/issues/201
     if [[ -f /usr/lib/x86_64-linux-gnu/libstdc++.so.6 ]]; then
-      cp /usr/lib/x86_64-linux-gnu/libstdc++.so.6 $HOME/packages/julias/julia-1.6.1/lib/julia
+      cp /usr/lib/x86_64-linux-gnu/libstdc++.so.6 $HOME/packages/julias/julia-1.3.1/lib/julia
     fi
-    # Should install in $HOME/.local/bin which was added to the path above
-    [[ -x `which julia` ]] && [ "$(julia -e 'println(VERSION >= v"1.6.1")')" == "true" ] || die "julia not found PATH after install."
   fi
 
   # Install dependencies.
@@ -199,10 +206,6 @@ fi
 # Install other system-wide packages.
 if [[ "$OSTYPE" == "linux-gnu" ]]; then
   EXT_DEPS="virtualenv clang cmake curl python3 python3-dev python3-pip python3-setuptools python3-wheel python3-tk"
-  if [[ ${OPEN_SPIEL_BUILD_WITH_GO:-"OFF"} == "ON" ]]; then
-    EXT_DEPS="${EXT_DEPS} golang"
-  fi
-
   APT_GET=`which apt-get`
   if [ "$APT_GET" = "" ]
   then
@@ -220,12 +223,12 @@ if [[ "$OSTYPE" == "linux-gnu" ]]; then
     echo -e "\e[33mSystem wide packages already installed, skipping their installation.\e[0m"
   else
     echo "System wide packages missing. Installing them..."
-    sudo apt-get -y update
-    sudo apt-get -y install $EXT_DEPS
+    apt-get -y update
+    apt-get -y install $EXT_DEPS
   fi
 
   if [[ "$TRAVIS" ]]; then
-    sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${OS_PYTHON_VERSION} 10
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${OS_PYTHON_VERSION} 10
   fi
 elif [[ "$OSTYPE" == "darwin"* ]]; then  # Mac OSX
   brew search python
@@ -233,8 +236,8 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then  # Mac OSX
   [[ -x `which cmake` ]] || brew install cmake || echo "** Warning: failed 'brew install cmake' -- continuing"
   [[ -x `which python3` ]] || brew install python3 || echo "** Warning: failed 'brew install python3' -- continuing"
   # On Github Actions, macOS 10.15 comes with Python 3.9.
-  # We want to test multiple Python versions determined by OS_PYTHON_VERSION.
-  if [[ "$CI" && "${OS_PYTHON_VERSION}" != "3.9" ]]; then
+  # Only 3.8 is supported by Tensorflow 2.2, and only 3.7 currently runs on CI.
+  if [[ "$CI" ]]; then
     brew install "python@${OS_PYTHON_VERSION}"
     brew unlink python@3.9
     brew link --force --overwrite "python@${OS_PYTHON_VERSION}"
@@ -243,10 +246,6 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then  # Mac OSX
   python3 --version
   [[ -x `which clang++` ]] || die "Clang not found. Please install or upgrade XCode and run the command-line developer tools"
   [[ -x `which curl` ]] || brew install curl || echo "** Warning: failed 'brew install curl' -- continuing"
-  if [[ ${OPEN_SPIEL_BUILD_WITH_GO:-"OFF"} == "ON" ]]; then
-    [[ -x `which go` ]] || brew install golang || echo "** Warning: failed 'brew install golang' -- continuing"
-  fi
-
   curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
   python3 get-pip.py
   pip3 install virtualenv

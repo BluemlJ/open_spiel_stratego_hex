@@ -17,10 +17,7 @@
 import random
 
 
-def sample_some_states(
-    game,
-    max_states=100,
-    make_distribution_fn=lambda states: [1 / len(states)] * len(states)):
+def sample_some_states(game, max_states=100):
   """Samples some states in the game.
 
   This can be run for large games, in contrast to `get_all_states`. It is useful
@@ -35,9 +32,6 @@ def sample_some_states(
   Arguments:
     game: The game to analyze, as returned by `load_game`.
     max_states: The maximum number of states to return. Negative means no limit.
-    make_distribution_fn: Function that takes a list of states and
-      returns a corresponding distribution (as a list of floats). Only
-      used for mean field games.
 
   Returns:
     A `list` of `pyspiel.State`.
@@ -57,20 +51,12 @@ def sample_some_states(
   def expand_random_state():
     index = random.choice(list(indexes_with_unexplored_actions))
     state = states[index]
-    if state.is_mean_field_node():
-      child = state.clone()
-      child.update_distribution(
-          make_distribution_fn(child.distribution_support()))
+    actions = unexplored_actions[index]
+    action = random.choice(list(actions))
+    actions.remove(action)
+    if not actions:
       indexes_with_unexplored_actions.remove(index)
-      return child
-    else:
-      actions = unexplored_actions[index]
-      assert actions, f"Empty actions for state {state}"
-      action = random.choice(list(actions))
-      actions.remove(action)
-      if not actions:
-        indexes_with_unexplored_actions.remove(index)
-      return state.child(action)
+    return state.child(action)
 
   add_state(game.new_initial_state())
   while (len(states) < max_states) and indexes_with_unexplored_actions:

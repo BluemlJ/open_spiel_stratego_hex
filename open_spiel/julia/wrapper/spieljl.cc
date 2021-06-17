@@ -310,8 +310,6 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod) {
       .method("player_return", &open_spiel::State::PlayerReturn)
       .method("is_chance_node", &open_spiel::State::IsChanceNode)
       .method("is_simultaneous_node", &open_spiel::State::IsSimultaneousNode)
-      .method("is_mean_field_node", &open_spiel::State::IsMeanFieldNode)
-      .method("is_player_node", &open_spiel::State::IsPlayerNode)
       .method("history", &open_spiel::State::History)
       .method("history_str", &open_spiel::State::HistoryString)
       .method("information_state_string",
@@ -354,12 +352,7 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod) {
       .method("num_players", &open_spiel::State::NumPlayers)
       .method("chance_outcomes", &open_spiel::State::ChanceOutcomes)
       .method("get_type", &open_spiel::State::GetType)
-      .method("serialize", &open_spiel::State::Serialize)
-      .method("distribution_support", &open_spiel::State::DistributionSupport)
-      .method("update_distribution",
-              [](open_spiel::State& s, std::vector<double> distribution) {
-                return s.UpdateDistribution(distribution);
-              });
+      .method("serialize", &open_spiel::State::Serialize);
 
   mod.add_type<open_spiel::Game>("Game")
       .method("num_distinct_actions", &open_spiel::Game::NumDistinctActions)
@@ -687,11 +680,7 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod) {
       .constructor<const open_spiel::Game&,
                    const std::unordered_map<std::string, int>&, int>();
 
-  mod.method("evaluate_bots", [](open_spiel::State* state,
-                                 const std::vector<open_spiel::Bot*>& bots,
-                                 int seed) {
-    return open_spiel::EvaluateBots(state, bots, seed);
-  });
+  mod.method("evaluate_bots", &open_spiel::EvaluateBots);
   mod.method("exploitability", [](const open_spiel::Game& game,
                                   const open_spiel::Policy& policy) {
     return open_spiel::algorithms::Exploitability(game, policy);

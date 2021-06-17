@@ -161,16 +161,16 @@ float ValueAt(const std::vector<float>& v, const std::vector<int>& shape,
   return ValueAt(v, shape, plane, sq.x, sq.y);
 }
 
-void InformationStateTensorTestsWithProbability() {
+void ObservationTensorTestsWithProbability() {
   std::shared_ptr<const Game> game = LoadGame("yorktown");
   YorktownState state(
       game, "FEBMBEFEEFBGIBHIBEDBGJDDDHCGJGDHDLIFKDDHaa__aa__aaaa__aa__aaSTPQNSQPTSUPWPVRPXPURNQONNQSNVPTNQRRTYUP r 20"); 
   
   std::cout << state.Board().DebugString() << std::endl;
   
-  auto shape = game->InformationStateTensorShape();
-  std::vector<float> v(game->InformationStateTensorSize());
-  state.InformationStateTensor(state.CurrentPlayer(),
+  auto shape = game->ObservationTensorShape();
+  std::vector<float> v(game->ObservationTensorSize());
+  state.ObservationTensor(state.CurrentPlayer(),
                                   absl::MakeSpan(v));
 
 
@@ -207,7 +207,7 @@ void InformationStateTensorTestsWithProbability() {
   action = MoveToAction(*maybe_move);
   state.ApplyAction(action);
 
-  state.InformationStateTensor(state.CurrentPlayer(),
+  state.ObservationTensor(state.CurrentPlayer(),
                                   absl::MakeSpan(v));
  
   std::cout << "Check Flag position after Move" << std::endl;
@@ -218,12 +218,12 @@ void InformationStateTensorTestsWithProbability() {
 
 }
 
-void InformationStateTensorTests() {
+void ObservationTensorTests() {
   std::shared_ptr<const Game> game = LoadGame("yorktown");
   YorktownState state(game);
-  auto shape = game->InformationStateTensorShape();
-  std::vector<float> v(game->InformationStateTensorSize());
-  state.InformationStateTensor(state.CurrentPlayer(),
+  auto shape = game->ObservationTensorShape();
+  std::vector<float> v(game->ObservationTensorSize());
+  state.ObservationTensor(state.CurrentPlayer(),
                                   absl::MakeSpan(v));
 
   // For each piece type, check one square that's supposed to be occupied, and
@@ -257,7 +257,7 @@ void InformationStateTensorTests() {
   action = MoveToAction(*maybe_move);
   state.ApplyAction(action);
 
-  state.InformationStateTensor(state.CurrentPlayer(),
+  state.ObservationTensor(state.CurrentPlayer(),
                                   absl::MakeSpan(v));
  
   std::cout << "Check Flag position after Move" << std::endl;
@@ -266,20 +266,6 @@ void InformationStateTensorTests() {
   SPIEL_CHECK_EQ(ValueAt(v, shape, 1, "e1"), 0.0);
   SPIEL_CHECK_EQ(ValueAt(v, shape, 1, "e5"), 0.0);
 
-}
-
-void CloneTests() {
-  std::shared_ptr<const Game> game = LoadGame("yorktown");
-  YorktownState state(
-      game, "FEBMBEFEEFBGIBHIBEDBGJDDDHCGJGDHDLIFKDDHaa__aa__aaaa__aa__aaSTPQNSQPTSUPWPVRPXPURNQONNQSNVPTNQRRTYUP r 20"); 
-  
-  std::cout << state.ToString() << std::endl;
-  std::unique_ptr<State> clone = state.Clone();
-  std::cout << clone->ToString() << std::endl;
-
-  
-
-  
 }
 
 }  // namespace
@@ -292,7 +278,6 @@ int main(int argc, char** argv) {
   open_spiel::yorktown::MoveGenerationTests();
   open_spiel::yorktown::UndoTests();
   open_spiel::yorktown::TerminalReturnTests();
-  open_spiel::yorktown::InformationStateTensorTestsWithProbability();
-  open_spiel::yorktown::CloneTests();
-  //open_spiel::yorktown::InformationStateTensorTests();
+  open_spiel::yorktown::ObservationTensorTestsWithProbability();
+  //open_spiel::yorktown::ObservationTensorTests();
 }

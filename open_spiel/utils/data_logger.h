@@ -38,9 +38,7 @@ class DataLogger {
 class DataLoggerJsonLines : public DataLogger {
  public:
   explicit DataLoggerJsonLines(const std::string& path, const std::string& name,
-                               bool flush = false,
-                               const std::string& mode = "w",
-                               absl::Time start_time = absl::Now());
+                               bool flush = false);
   ~DataLoggerJsonLines() override;
 
   // The json lines logger is move only.

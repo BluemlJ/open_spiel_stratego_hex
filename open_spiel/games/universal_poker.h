@@ -45,15 +45,9 @@ constexpr uint8_t kMaxUniversalPokerPlayers = 10;
 
 // This is the mapping from int to action. E.g. the legal action "0" is fold,
 // the legal action "1" is check/call, etc.
-enum ActionType { kFold = 0, kCall = 1, kBet = 2, kAllIn = 3, kHalfPot = 4 };
+enum ActionType { kFold = 0, kCall = 1, kBet = 2, kAllIn = 3, kDeal = 4 };
+enum BettingAbstraction { kFCPA = 0, kFC = 1, kFULLGAME = 2 };
 
-// There are 5 actions: Fold, Call, Half-Pot bet, Pot Bet, and all-in.
-inline constexpr int kNumActionsFCHPA =
-    static_cast<int>(ActionType::kHalfPot) + 1;
-
-enum BettingAbstraction { kFCPA = 0, kFC = 1, kFULLGAME = 2, kFCHPA = 3 };
-
-// TODO(author1): Remove StateActionType and use ActionType instead.
 enum StateActionType {
   ACTION_DEAL = 1,
   ACTION_FOLD = 2,
@@ -95,18 +89,6 @@ class UniversalPokerState : public State {
     return {action};
   }
 
-  const acpc_cpp::ACPCState &acpc_state() const { return acpc_state_; }
-  const BettingAbstraction &betting() const { return betting_abstraction_; }
-
-  // TODO(author1): If this is slow, cache it.
-  // Returns the raise-to size of a pot bet. Multiple determines the size; e.g.
-  // a double pot bet would have multiple = 2.
-  int PotSize(double multiple = 1.) const;
-
-  // Returns the raise-to size of the current player going all-in.
-  int AllInSize() const;
-  void ApplyChoiceAction(StateActionType action_type, int size);
-
  protected:
   void DoApplyAction(Action action_id) override;
 
@@ -118,6 +100,7 @@ class UniversalPokerState : public State {
   const uint32_t &GetPossibleActionsMask() const { return possibleActions_; }
   const int GetPossibleActionCount() const;
 
+  void ApplyChoiceAction(StateActionType action_type, int size);
   const std::string &GetActionSequence() const { return actionSequence_; }
 
   void AddHoleCard(uint8_t card) {
@@ -178,15 +161,11 @@ class UniversalPokerState : public State {
   // The current player >= 0 otherwise.
   Player cur_player_;
   uint32_t possibleActions_;
+  int32_t potSize_ = 0;
+  int32_t allInSize_ = 0;
   std::string actionSequence_;
 
   BettingAbstraction betting_abstraction_;
-
-  // Used for custom implementation of subgames.
-  std::vector<double> handReaches_;
-  std::vector <std::pair <Action, double>> DistributeHandCardsInSubgame() const;
-  bool IsDistributingSingleCard() const;
-  const std::vector <int> GetEncodingBase() const;
 };
 
 class UniversalPokerGame : public Game {
@@ -210,14 +189,11 @@ class UniversalPokerGame : public Game {
   }
 
   int big_blind() const { return big_blind_; }
-  double MaxCommitment() const;
 
  private:
+  double MaxCommitment() const;
   std::string gameDesc_;
   const acpc_cpp::ACPCGame acpc_game_;
-  const int potSize_;
-  const std::string boardCards_;
-  const std::string handReaches_;
   absl::optional<int> max_game_length_;
   BettingAbstraction betting_abstraction_ = BettingAbstraction::kFULLGAME;
   int big_blind_;
@@ -266,37 +242,7 @@ class UniformRestrictedActions : public Policy {
   const ActionType max_action_;
 };
 
-// Converts an ACPC action into one that's compatible with UniversalPokerGame.
-open_spiel::Action ACPCActionToOpenSpielAction(
-    const project_acpc_server::Action &action,
-    const UniversalPokerState &state);
-
-// Get hole card index within the array of reach probabilities, as specified
-// in https://github.com/Sandholm-Lab/LibratusEndgames :
-//
-// The probability, according to the Libratus blueprint strategy, of each player
-// reaching this endgame with each hand. There are a total of 2,652
-// probabilities in this list. The first 1,326 are for the "out of position"
-// player (the first player to act on the round), while the remaining 1,326 are
-// for the "button" player. Each of the 1,326 probabilities corresponds to a
-// poker hand, ordered as follows:
-//
-// 2s2h, 2s2d, 2s2c, 2s3s, 2s3h, ..., 2sAc, 2h2d, 2h2c, ..., AdAc.
-int GetHoleCardsReachIndex(int card_a, int card_b,
-                           int num_suits, int num_ranks);
-
-// Make random subgame, with optionally specified round, pot size, board
-// cards and hand reach probs. If all of these variables are specified,
-// it is actually a non-randomized subgame: by omiting any parameter,
-// a random value will be supplied automatically.
-std::shared_ptr<const Game> MakeRandomSubgame(
-    std::mt19937 &rng, int pot_size = -1, std::string board_cards = "",
-    std::vector<double> hand_reach = {});
-// Number of unique hands in no-limit poker.
-constexpr int kSubgameUniqueHands = 1326;  // = (52*51) / 2
-
 std::ostream &operator<<(std::ostream &os, const BettingAbstraction &betting);
-
 }  // namespace universal_poker
 }  // namespace open_spiel
 

@@ -17,11 +17,10 @@
 #include <memory>
 
 #include "open_spiel/games/bridge.h"
-#include "open_spiel/python/pybind11/pybind11.h"
 #include "open_spiel/spiel.h"
-
-PYBIND11_SMART_HOLDER_TYPE_CASTERS(open_spiel::bridge::BridgeGame);
-PYBIND11_SMART_HOLDER_TYPE_CASTERS(open_spiel::bridge::BridgeState);
+#include "pybind11/include/pybind11/numpy.h"
+#include "pybind11/include/pybind11/pybind11.h"
+#include "pybind11/include/pybind11/stl.h"
 
 namespace open_spiel {
 
@@ -30,7 +29,7 @@ using bridge::BridgeGame;
 using bridge::BridgeState;
 
 void init_pyspiel_games_bridge(py::module& m) {
-  py::classh<BridgeState, State>(m, "BridgeState")
+  py::class_<BridgeState, State>(m, "BridgeState")
       .def("contract_index", &BridgeState::ContractIndex)
       .def("possible_contracts", &BridgeState::PossibleContracts)
       .def("score_by_contract", &BridgeState::ScoreByContract)
@@ -60,7 +59,7 @@ void init_pyspiel_games_bridge(py::module& m) {
             return dynamic_cast<BridgeState*>(game_and_state.second.release());
           }));
 
-  py::classh<BridgeGame, Game>(m, "BridgeGame")
+  py::class_<BridgeGame, std::shared_ptr<BridgeGame>, Game>(m, "BridgeGame")
       .def("num_possible_contracts", &BridgeGame::NumPossibleContracts)
       .def("contract_string", &BridgeGame::ContractString)
       .def("private_observation_tensor_size",

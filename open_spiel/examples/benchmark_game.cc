@@ -81,11 +81,8 @@ int RandomSimulation(std::mt19937* rng, const Game& game, bool verbose) {
       for (int p = 0; p < game.NumPlayers(); p++) {
         std::vector<Action> actions;
         actions = state->LegalActions(p);
-        Action action = 0;
-        if (!actions.empty()) {
-          std::uniform_int_distribution<int> dis(0, actions.size() - 1);
-          action = actions[dis(*rng)];
-        }
+        std::uniform_int_distribution<int> dis(0, actions.size() - 1);
+        Action action = actions[dis(*rng)];
         joint_action.push_back(action);
         if (verbose) {
           std::cout << "Player " << p

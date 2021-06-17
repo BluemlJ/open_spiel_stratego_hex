@@ -24,100 +24,68 @@
 namespace open_spiel {
 namespace gin_rummy {
 
+inline constexpr int kNumSuits = 4;
+inline constexpr int kNumRanks = 13;
+inline constexpr int kNumCards = kNumSuits * kNumRanks;
+inline constexpr int kMaxHandSize = 11;
+
 using VecInt = std::vector<int>;
 using VecVecInt = std::vector<std::vector<int>>;
 using VecVecVecInt = std::vector<std::vector<std::vector<int>>>;
 
-struct SuitComparator {
-  explicit SuitComparator(const int num_ranks) : num_ranks(num_ranks) {}
-  int CardSuit(int card) { return card / num_ranks; }
-  bool operator()(int card_1, int card_2) {
-    if (CardSuit(card_1) == CardSuit(card_2)) {
-      return card_1 < card_2;
-    }
-    return CardSuit(card_1) < CardSuit(card_2);
-  }
-  const int num_ranks;
-};
+std::string CardString(absl::optional<int> card);
+std::string HandToString(const VecInt &cards);
 
-struct RankComparator {
-  explicit RankComparator(const int num_ranks) : num_ranks(num_ranks) {}
-  int CardRank(int card) { return card % num_ranks; }
-  bool operator()(int card_1, int card_2) {
-    if (CardRank(card_1) == CardRank(card_2)) {
-      return card_1 < card_2;
-    }
-    return CardRank(card_1) < CardRank(card_2);
-  }
-  const int num_ranks;
-};
+int CardInt(std::string card);
 
+std::vector<std::string> CardIntsToCardStrings(const VecInt &cards);
+VecInt CardStringsToCardInts(const std::vector<std::string> &cards);
 
-struct GinRummyUtils {
-  GinRummyUtils(int num_ranks, int num_suits, int hand_size);
+int CardValue(int card_index);
+int TotalCardValue(const VecInt &cards);
+int TotalCardValue(const VecVecInt &meld_group);
+int CardRank(const int card_index);
+int CardSuit(const int card_index);
 
-  const int num_ranks;
-  const int num_suits;
-  const int num_cards;
-  const int hand_size;
+bool CompareRanks(int card_1, int card_2);
+bool CompareSuits(int card_1, int card_2);
 
-  const SuitComparator suit_comp;
-  const RankComparator rank_comp;
+bool IsRankMeld(const VecInt &cards);
+bool IsSuitMeld(const VecInt &cards);
 
-  // This mapping is independent of changes to num_ranks and num_suits.
-  const std::map<int, VecInt> int_to_meld;
-  const std::map<VecInt, int> meld_to_int;
+VecVecInt RankMelds(VecInt cards);
+VecVecInt SuitMelds(VecInt cards);
+VecVecInt AllMelds(const VecInt &cards);
 
-  std::string CardString(absl::optional<int> card) const;
-  std::string HandToString(const VecInt &cards) const;
+bool VectorsIntersect(VecInt *v1, VecInt *v2);
 
-  int CardInt(std::string card) const;
+VecVecInt NonOverlappingMelds(VecInt *meld, VecVecInt *melds);
 
-  std::vector<std::string> CardIntsToCardStrings(const VecInt &cards) const;
-  VecInt CardStringsToCardInts(const std::vector<std::string> &cards) const;
+void AllPaths(VecInt *meld, VecVecInt *all_melds, VecVecInt *path,
+              VecVecVecInt *all_paths);
 
-  int CardValue(int card_index) const;
-  int TotalCardValue(const VecInt &cards) const;
-  int TotalCardValue(const VecVecInt &meld_group) const;
-  int CardRank(const int card_index) const;
-  int CardSuit(const int card_index) const;
+VecVecVecInt AllMeldGroups(const VecInt &cards);
 
-  bool IsConsecutive(const VecInt &v) const;
-  bool IsRankMeld(const VecInt &cards) const;
-  bool IsSuitMeld(const VecInt &cards) const;
+VecVecInt BestMeldGroup(const VecInt &cards);
 
-  VecVecInt RankMelds(VecInt cards) const;
-  VecVecInt SuitMelds(VecInt cards) const;
-  VecVecInt AllMelds(const VecInt &cards) const;
+int MinDeadwood(VecInt hand, absl::optional<int> card);
+int MinDeadwood(const VecInt &hand);
 
-  bool VectorsIntersect(VecInt *v1, VecInt *v2) const;
+int RankMeldLayoff(const VecInt &meld);
+VecInt SuitMeldLayoffs(const VecInt &meld);
 
-  VecVecInt NonOverlappingMelds(VecInt *meld, VecVecInt *melds) const;
+VecInt LegalMelds(const VecInt &hand, int knock_card);
+VecInt LegalDiscards(const VecInt &hand, int knock_card);
 
-  void AllPaths(VecInt *meld, VecVecInt *all_melds, VecVecInt *path,
-         VecVecVecInt *all_paths) const;
+VecInt AllLayoffs(const VecInt &layed_melds, const VecInt &previous_layoffs);
 
-  VecVecVecInt AllMeldGroups(const VecInt &cards) const;
+int MeldToInt(VecInt meld);
 
-  VecVecInt BestMeldGroup(const VecInt &cards) const;
+std::map<VecInt, int> BuildMeldToIntMap();
+std::map<int, VecInt> BuildIntToMeldMap();
 
-  int MinDeadwood(VecInt hand, absl::optional<int> card) const;
-  int MinDeadwood(const VecInt &hand) const;
-
-  int RankMeldLayoff(const VecInt &meld) const;
-  VecInt SuitMeldLayoffs(const VecInt &meld) const;
-
-  VecInt LegalMelds(const VecInt &hand, int knock_card) const;
-  VecInt LegalDiscards(const VecInt &hand, int knock_card) const;
-
-  VecInt AllLayoffs(const VecInt &layed_melds,
-                    const VecInt &previous_layoffs) const;
-
-  int MeldToInt(VecInt meld) const;
-
-  std::map<VecInt, int> BuildMeldToIntMap() const;
-  std::map<int, VecInt> BuildIntToMeldMap() const;
-};
+static const std::map<int, VecInt> int_to_meld = BuildIntToMeldMap();
+static const std::map<VecInt, int> meld_to_int = BuildMeldToIntMap();
 
 }  // namespace gin_rummy
 }  // namespace open_spiel

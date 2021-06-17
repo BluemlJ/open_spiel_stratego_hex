@@ -104,21 +104,7 @@ class Policy(object):
 
   def to_tabular(self):
     """Returns a new `TabularPolicy` equivalent to this policy."""
-    if self.game.get_type().dynamics == pyspiel.GameType.Dynamics.MEAN_FIELD:
-      # TODO(perolat): We use s.observation_string(DEFAULT_MFG_PLAYER) here as
-      # the number of history is exponential on the depth of the MFG. What we
-      # really need is a representation of the state.
-      # For many player Mean Field games, the state will be
-      # (x0, x1, x2, ..., xn) and the observation_string(0) will output the
-      # string of x0. In that case we would need something like
-      # str([observation_string(i) for i in range(num_player)])
-      tabular_policy = TabularPolicy(
-          self.game,
-          self.player_ids,
-          to_string=lambda s: s.observation_string(pyspiel.PlayerId.
-                                                   DEFAULT_PLAYER_ID))
-    else:
-      tabular_policy = TabularPolicy(self.game, self.player_ids)
+    tabular_policy = TabularPolicy(self.game, self.player_ids)
     for index, state in enumerate(tabular_policy.states):
       tabular_policy.action_probability_array[index, :] = 0
       for action, probability in self.action_probabilities(state).items():
@@ -136,8 +122,8 @@ class TabularPolicy(Policy):
   code for users of this class, i.e. `action_probability_array` contains
   states for player 0 first, followed by states for player 1, etc.
 
-  The policy uses `state.information_state_string` as the keys if available,
-  otherwise `state.observation_string`.
+  The policy uses `state.information_state` as the keys if available, otherwise
+  `state.observation`.
 
   Usages:
 
@@ -178,7 +164,7 @@ class TabularPolicy(Policy):
       the tabular policy.
   """
 
-  def __init__(self, game, players=None, to_string=lambda s: s.history_str()):
+  def __init__(self, game, players=None):
     """Initializes a uniform random policy for all players in the game."""
     players = sorted(players or range(game.num_players()))
     super(TabularPolicy, self).__init__(game, players)
@@ -189,9 +175,7 @@ class TabularPolicy(Policy):
         game,
         depth_limit=-1,
         include_terminals=False,
-        include_chance_states=False,
-        include_mean_field_states=False,
-        to_string=to_string)
+        include_chance_states=False)
 
     # Assemble legal actions for every valid (state, player) pair, keyed by
     # information state string.
@@ -248,8 +232,6 @@ class TabularPolicy(Policy):
     probability = self.policy_for_key(self._state_key(state, player_id))
     legal_actions = (state.legal_actions() if player_id is None
                      else state.legal_actions(player_id))
-    if not legal_actions:
-      return {0: 1.0}
     return {action: probability[action] for action in legal_actions}
 
   def state_index(self, state):
@@ -358,8 +340,6 @@ class UniformRandomPolicy(Policy):
     """
     legal_actions = (state.legal_actions() if player_id is None
                      else state.legal_actions(player_id))
-    if not legal_actions:
-      return {0: 1.0}
     probability = 1 / len(legal_actions)
     return {action: probability for action in legal_actions}
 
@@ -374,8 +354,6 @@ class FirstActionPolicy(Policy):
   def action_probabilities(self, state, player_id=None):
     legal_actions = (state.legal_actions() if player_id is None
                      else state.legal_actions(player_id))
-    if not legal_actions:
-      return {0: 1.0}
     min_action = min(legal_actions)
     return {action: 1.0 if action == min_action else 0.0
             for action in legal_actions}
@@ -407,32 +385,6 @@ def tabular_policy_from_callable(game, callable_policy, players=None):
   return tabular_policy
 
 
-def pyspiel_policy_to_python_policy(game, pyspiel_tabular_policy, players=None):
-  """Converts a pyspiel.TabularPolicy to a TabularPolicy.
-
-  Args:
-    game: The OpenSpiel game.
-    pyspiel_tabular_policy: Pyspiel tabular policy to copy from.
-    players: List of integer player ids to copy policy from. For example,
-      `players=[0]` will only copy player 0's policy over into the python
-      policy (the other player's policies will be undefined). Default value of
-      `None` will copy all players' policies.
-
-  Returns:
-    python_policy
-  """
-  policy = TabularPolicy(game, players=players)
-  for item in pyspiel_tabular_policy.policy_table().items():
-    info_state_str, actions_probs = item
-    # If requested, only populate a policy for particular players.
-    if players is not None and info_state_str not in policy.state_lookup:
-      continue
-    state_policy = policy.policy_for_key(info_state_str)
-    for action, prob in actions_probs:
-      state_policy[action] = prob
-  return policy
-
-
 def python_policy_to_pyspiel_policy(python_tabular_policy):
   """Converts a TabularPolicy to a pyspiel.TabularPolicy."""
   infostates_to_probabilities = dict()
@@ -458,31 +410,3 @@ def python_policies_to_pyspiel_policies(policies):
     a list of pyspiel.TabularPolicy.
   """
   return [python_policy_to_pyspiel_policy(p) for p in policies]
-
-
-def merge_tabular_policies(tabular_policies, game):
-  """Merges n_player policies into single joint policy.
-
-  Missing states are filled with a valid uniform policy.
-
-  Args:
-    tabular_policies: List of python TabularPolicy (one for each player).
-    game: The game corresponding to the resulting TabularPolicy.
-
-  Returns:
-    merged_policy: A TabularPolicy with each player i's policy taken from the
-      ith joint_policy.
-  """
-  if len(tabular_policies) != game.num_players():
-    raise ValueError("len(tabular_policies) != num_players: %d != %d" %
-                     (len(tabular_policies), game.num_players()))
-  merged_policy = TabularPolicy(game)
-  for p, p_states in enumerate(merged_policy.states_per_player):
-    for p_state in p_states:
-      to_index = merged_policy.state_lookup[p_state]
-      # Only copy if the state exists, otherwise fall back onto uniform.
-      if p_state in tabular_policies[p].state_lookup:
-        from_index = tabular_policies[p].state_lookup[p_state]
-        merged_policy.action_probability_array[to_index] = (
-            tabular_policies[p].action_probability_array[from_index])
-  return merged_policy

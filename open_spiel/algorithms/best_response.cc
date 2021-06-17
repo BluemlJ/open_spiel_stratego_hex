@@ -29,14 +29,12 @@ namespace algorithms {
 
 TabularBestResponse::TabularBestResponse(const Game& game,
                                          Player best_responder,
-                                         const Policy* policy,
-                                         const float prob_cut_threshold)
+                                         const Policy* policy)
     : best_responder_(best_responder),
       tabular_policy_container_(),
       policy_(policy),
       tree_(HistoryTree(game.NewInitialState(), best_responder_)),
       num_players_(game.NumPlayers()),
-      prob_cut_threshold_(prob_cut_threshold),
       infosets_(GetAllInfoSets(game.NewInitialState(), best_responder, policy,
                                &tree_)),
       root_(game.NewInitialState()),
@@ -48,14 +46,12 @@ TabularBestResponse::TabularBestResponse(const Game& game,
 
 TabularBestResponse::TabularBestResponse(
     const Game& game, Player best_responder,
-    const std::unordered_map<std::string, ActionsAndProbs>& policy_table,
-    const float prob_cut_threshold)
+    const std::unordered_map<std::string, ActionsAndProbs>& policy_table)
     : best_responder_(best_responder),
       tabular_policy_container_(policy_table),
       policy_(&tabular_policy_container_),
       tree_(HistoryTree(game.NewInitialState(), best_responder_)),
       num_players_(game.NumPlayers()),
-      prob_cut_threshold_(prob_cut_threshold),
       infosets_(GetAllInfoSets(game.NewInitialState(), best_responder, policy_,
                                &tree_)),
       root_(game.NewInitialState()),
@@ -115,15 +111,14 @@ double TabularBestResponse::HandleDecisionCase(HistoryNode* node) {
   }
   double value = 0;
   for (const auto& action : node->GetState()->LegalActions()) {
-    const double prob = GetProb(state_policy, action);
-    if (prob <= prob_cut_threshold_) continue;
-
     // We discard the probability here that's returned by GetChild as we
     // immediately load the probability for the given child from the policy.
     HistoryNode* child = node->GetChild(action).second;
+
     if (child == nullptr) SpielFatalError("HandleDecisionCase: node is null.");
 
     // Finally, we update value by the policy weighted value of the child.
+    const double prob = GetProb(state_policy, action);
     SPIEL_CHECK_GE(prob, 0);
     value += prob * Value(child->GetHistory());
   }
@@ -137,7 +132,6 @@ double TabularBestResponse::HandleChanceCase(HistoryNode* node) {
     std::pair<double, HistoryNode*> prob_and_child = node->GetChild(action);
     double prob = prob_and_child.first;
     prob_sum += prob;
-    if (prob <= prob_cut_threshold_) continue;
     HistoryNode* child = prob_and_child.second;
     if (child == nullptr) SpielFatalError("Child is null.");
 
@@ -171,9 +165,6 @@ double TabularBestResponse::Value(const std::string& history) {
       cache_value = HandleChanceCase(node);
       break;
     }
-    case StateType::kMeanField: {
-      SpielFatalError("kMeanField not supported.");
-    }
   }
   value_cache_[history] = cache_value;
   return value_cache_[history];
@@ -192,7 +183,6 @@ Action TabularBestResponse::BestResponseAction(const std::string& infostate) {
     double value = 0;
     // Prob here is the counterfactual reach-weighted probability.
     for (const auto& state_and_prob : infoset) {
-      if (state_and_prob.second <= prob_cut_threshold_) continue;
       HistoryNode* state_node = state_and_prob.first;
       HistoryNode* child_node = state_node->GetChild(action).second;
       SPIEL_CHECK_TRUE(child_node != nullptr);
@@ -221,7 +211,6 @@ std::vector<Action> TabularBestResponse::BestResponseActions(
     double value = 0;
     // Prob here is the counterfactual reach-weighted probability.
     for (const auto& [state_node, prob]  : infoset) {
-      if (prob <= prob_cut_threshold_) continue;
       HistoryNode* child_node = state_node->GetChild(action).second;
       SPIEL_CHECK_TRUE(child_node != nullptr);
       value += prob * Value(child_node->GetHistory());
@@ -251,7 +240,6 @@ TabularBestResponse::BestResponseActionValues(const std::string& infostate) {
 
     // Prob here is the counterfactual reach-weighted probability.
     for (const auto& [state_node, prob] : infoset) {
-      if (prob <= prob_cut_threshold_) continue;
       HistoryNode* child_node = state_node->GetChild(action).second;
       SPIEL_CHECK_TRUE(child_node != nullptr);
       value += prob * Value(child_node->GetHistory());

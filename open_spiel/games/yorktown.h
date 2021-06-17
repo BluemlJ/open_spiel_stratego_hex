@@ -32,7 +32,6 @@ namespace yorktown {
 
 using StandardYorktownBoard = YorktownBoard<10>;
 
-
 // Constants.
 inline constexpr int NumPlayers() { return 2; }
 inline constexpr double LossUtility() { return -1.0; }
@@ -45,14 +44,22 @@ inline constexpr int kNumActionDestinations = 36;
 //NumActionDestinations * possible Fields (for simplicity 100)
 inline constexpr int kNumDistinctActions = 3600;
 
-// A possible starting position which is used if no other position is specified
 inline constexpr char* kInitPos = "FEBMBEFEEFBGIBHIBEDBGJDDDHCGJGDHDLIFKDDHAA__AA__AAAA__AA__AASTQQNSQPTSUPWPVRPXPURNQONNQSNVPTNQRRTYUP r 0";
 
-// The shape of the InformationStateTensor
+// The shape of my observationTensor
+inline const std::vector<int>& ObservationTensorShape() {
+  static std::vector<int> shape{
+      28 /* piece types (12) * colours + empty + lake + unknown*2*/ +
+          1 /* side to move */ + 1 /*repetition count*/,
+      BoardSize(), BoardSize()};
+  return shape;
+}
+
+// The shape of my InformationStateTensor
 inline const std::vector<int>& InformationStateTensorShape() {
   static std::vector<int> shape{
-      28 /* piece types (12) * colours + empty field + lakes + unknown* colors*/ +
-          1 /* side to move */ ,
+      28 /* piece types (12) * colours + empty + lake + unknown*2*/ +
+          1 /* side to move */ + 1 /*repetition count*/,
       BoardSize(), BoardSize()};
   return shape;
 }
@@ -139,22 +146,32 @@ class YorktownState : public State {
     return static_cast<bool>(MaybeFinalReturns());
   }
 
-  // Returns the terminal rewards. 0 if the game is not terminated yet.
+  // TODO
   std::vector<double> Returns() const override;
 
   // This method returns the current InformationString of the player as a String
   // This is identical to the StraDos3 string of the current board
   std::string InformationStateString(Player player) const override;
 
-   // The InformationState and Observationtensors return the current State in form of 
+  // This method returns the current obervations of a player.
+  // At the moment this is identical to the InformationStateString
+  std::string ObservationString(Player player) const override;
+
+  // The InformationState and Observationtensors return the current State in form of 
   // planes 
   void InformationStateTensor(Player player,
                               absl::Span<float> values) const override;
- 
+  void ObservationTensor(Player player,
+                         absl::Span<float> values) const override;
+  
   // A method to clone the current state
   std::unique_ptr<State> Clone() const override;
 
-  // A method undoing the given action 
+  std::unique_ptr<State> CloneAndRandomizeToState() const;
+  // A method to clone the current state
+  std::unique_ptr<YorktownState> CloneAndRandomize() const;
+
+  // A method undoing the given action (TODO)
   void UndoAction(Player player, Action action) override;
   
   // Current board.
@@ -169,11 +186,8 @@ class YorktownState : public State {
   std::vector<Move>& MovesHistory() { return moves_history_; }
   const std::vector<Move>& MovesHistory() const { return moves_history_; }
 
-  void
-  DebugString();
+  void DebugString();
 
-
-  // The current ply number
   int MoveNumber() const { return Board().Movenumber(); }
 
  protected:
@@ -181,7 +195,9 @@ class YorktownState : public State {
   void DoApplyAction(Action action_id) override;
 
  private:
-    
+  
+  bool IsRepetitionDraw() const;
+
   // Calculates legal actions and caches them. This is separate from
   // LegalActions() as there are a number of other methods that need the value
   // of LegalActions. This is a separate method as it's called from
@@ -193,7 +209,7 @@ class YorktownState : public State {
 
   Player cur_player_;  // Player whose turn it is.
 
-  // We have to store every move made and to implement
+  // We have to store every move made to check for repetitions and to implement
   // undo. We store the current board position as an optimization.
   std::vector<Move> moves_history_;
   // We store the start board for history to support games not starting
@@ -201,29 +217,39 @@ class YorktownState : public State {
   StandardYorktownBoard start_board_;
   // We store the current board position as an optimization.
   StandardYorktownBoard current_board_;
-  
+  // // RepetitionTable records how many times the given hash exists in the history
+  // stack (including the current board).
+  // We are already indexing by board hash, so there is no need to hash that
+  // hash again, so we use a custom passthrough hasher.
+  class PassthroughHash {
+   public:
+    std::size_t operator()(uint64_t x) const {
+      return static_cast<std::size_t>(x);
+    }
+  };
+  using RepetitionTable = absl::flat_hash_map<uint64_t, int, PassthroughHash>;
+  RepetitionTable repetitions_;
   mutable absl::optional<std::vector<Action>> cached_legal_actions_;
 };
 
 class YorktownGame : public Game {
  public:
   explicit YorktownGame(const GameParameters& params);
-
-  // see above (36 possible moves)
   int NumDistinctActions() const override {return yorktown::kNumDistinctActions;}
   
-  // pointer to the initial state with a given position in form of an strados string
+  
   std::unique_ptr<State> NewInitialState(
       const std::string& strados3) const override {
     return absl::make_unique<YorktownState>(shared_from_this(), strados3);
   }
   
-  // pointer to the initial state based on the defined default position
   std::unique_ptr<State> NewInitialState() const override {
     return absl::make_unique<YorktownState>(shared_from_this(), kInitPos);
   }
 
-  // getter for the constants
+  std::unique_ptr<State> DeserializeState(
+      const std::string& str) const override;
+
   int NumPlayers() const override { return yorktown::NumPlayers(); }
   double MinUtility() const override { return LossUtility(); }
   double UtilitySum() const override { return DrawUtility(); }
@@ -233,7 +259,9 @@ class YorktownGame : public Game {
     return yorktown::InformationStateTensorShape();
   }
   
-  
+  std::vector<int> ObservationTensorShape() const override {
+    return yorktown::ObservationTensorShape();
+  }
 
   int MaxGameLength() const override;
 

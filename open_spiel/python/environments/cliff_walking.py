@@ -19,6 +19,7 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
+import six
 
 from open_spiel.python import rl_environment
 
@@ -107,7 +108,7 @@ class Environment(object):
 
     if isinstance(actions, list):
       action = actions[0]
-    elif isinstance(actions, int):
+    elif isinstance(actions, six.integer_types):
       action = actions
     else:
       raise ValueError("Action not supported.", actions)

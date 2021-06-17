@@ -35,7 +35,8 @@ flags.DEFINE_integer("print_freq", 10, "How often to print the exploitability")
 
 
 def main(_):
-  game = pyspiel.load_game(FLAGS.game, {"players": FLAGS.players})
+  game = pyspiel.load_game(FLAGS.game,
+                           {"players": pyspiel.GameParameter(FLAGS.players)})
   xfp_solver = fictitious_play.XFPSolver(game)
   for i in range(FLAGS.iterations):
     xfp_solver.iteration()

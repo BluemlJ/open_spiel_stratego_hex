@@ -34,8 +34,7 @@ std::vector<double> ExpectedReturnsImpl(
     const State& state,
     const std::function<ActionsAndProbs(Player, const std::string&)>&
         policy_func,
-    int depth_limit,
-    float prob_cut_threshold) {
+    int depth_limit) {
   if (state.IsTerminal() || depth_limit == 0) {
     return state.Rewards();
   }
@@ -45,11 +44,9 @@ std::vector<double> ExpectedReturnsImpl(
   if (state.IsChanceNode()) {
     ActionsAndProbs action_and_probs = state.ChanceOutcomes();
     for (const auto& action_and_prob : action_and_probs) {
-      if (action_and_prob.second <= prob_cut_threshold) continue;
       std::unique_ptr<State> child = state.Child(action_and_prob.first);
       std::vector<double> child_values =
-          ExpectedReturnsImpl(
-              *child, policy_func, depth_limit - 1, prob_cut_threshold);
+          ExpectedReturnsImpl(*child, policy_func, depth_limit - 1);
       for (auto p = Player{0}; p < num_players; ++p) {
         values[p] += action_and_prob.second * child_values[p];
       }
@@ -76,17 +73,16 @@ std::vector<double> ExpectedReturnsImpl(
         SPIEL_CHECK_GE(player_action_prob, 0.0);
         SPIEL_CHECK_LE(player_action_prob, 1.0);
         joint_action_prob *= player_action_prob;
-        if (joint_action_prob <= prob_cut_threshold) {
+        if (player_action_prob == 0.0) {
           break;
         }
       }
 
-      if (joint_action_prob > prob_cut_threshold) {
+      if (joint_action_prob > 0.0) {
         std::unique_ptr<State> child = state.Clone();
         child->ApplyActions(actions);
         std::vector<double> child_values =
-            ExpectedReturnsImpl(
-                *child, policy_func, depth_limit - 1, prob_cut_threshold);
+            ExpectedReturnsImpl(*child, policy_func, depth_limit - 1);
         for (auto p = Player{0}; p < num_players; ++p) {
           values[p] += joint_action_prob * child_values[p];
         }
@@ -106,10 +102,9 @@ std::vector<double> ExpectedReturnsImpl(
       double action_prob = GetProb(state_policy, action);
       SPIEL_CHECK_GE(action_prob, 0.0);
       SPIEL_CHECK_LE(action_prob, 1.0);
-      if (action_prob > prob_cut_threshold) {
+      if (action_prob > 0.0) {
         std::vector<double> child_values =
-            ExpectedReturnsImpl(
-                *child, policy_func, depth_limit - 1, prob_cut_threshold);
+            ExpectedReturnsImpl(*child, policy_func, depth_limit - 1);
         for (auto p = Player{0}; p < num_players; ++p) {
           values[p] += action_prob * child_values[p];
         }
@@ -125,8 +120,7 @@ std::vector<double> ExpectedReturnsImpl(
 std::vector<double> ExpectedReturnsImpl(
     const State& state,
     const std::function<ActionsAndProbs(Player, const State&)>& policy_func,
-    int depth_limit,
-    float prob_cut_threshold) {
+    int depth_limit) {
   if (state.IsTerminal() || depth_limit == 0) {
     return state.Rewards();
   }
@@ -136,11 +130,9 @@ std::vector<double> ExpectedReturnsImpl(
   if (state.IsChanceNode()) {
     ActionsAndProbs action_and_probs = state.ChanceOutcomes();
     for (const auto& action_and_prob : action_and_probs) {
-      if (action_and_prob.second <= prob_cut_threshold) continue;
       std::unique_ptr<State> child = state.Child(action_and_prob.first);
       std::vector<double> child_values =
-          ExpectedReturnsImpl(
-              *child, policy_func, depth_limit - 1, prob_cut_threshold);
+          ExpectedReturnsImpl(*child, policy_func, depth_limit - 1);
       for (auto p = Player{0}; p < num_players; ++p) {
         values[p] += action_and_prob.second * child_values[p];
       }
@@ -167,17 +159,16 @@ std::vector<double> ExpectedReturnsImpl(
         SPIEL_CHECK_GE(player_action_prob, 0.0);
         SPIEL_CHECK_LE(player_action_prob, 1.0);
         joint_action_prob *= player_action_prob;
-        if (joint_action_prob <= prob_cut_threshold) {
+        if (player_action_prob == 0.0) {
           break;
         }
       }
 
-      if (joint_action_prob > prob_cut_threshold) {
+      if (joint_action_prob > 0.0) {
         std::unique_ptr<State> child = state.Clone();
         child->ApplyActions(actions);
         std::vector<double> child_values =
-            ExpectedReturnsImpl(
-                *child, policy_func, depth_limit - 1, prob_cut_threshold);
+            ExpectedReturnsImpl(*child, policy_func, depth_limit - 1);
         for (auto p = Player{0}; p < num_players; ++p) {
           values[p] += joint_action_prob * child_values[p];
         }
@@ -196,10 +187,9 @@ std::vector<double> ExpectedReturnsImpl(
       double action_prob = GetProb(state_policy, action);
       SPIEL_CHECK_GE(action_prob, 0.0);
       SPIEL_CHECK_LE(action_prob, 1.0);
-      if (action_prob > prob_cut_threshold) {
+      if (action_prob > 0.0) {
         std::vector<double> child_values =
-            ExpectedReturnsImpl(
-                *child, policy_func, depth_limit - 1, prob_cut_threshold);
+            ExpectedReturnsImpl(*child, policy_func, depth_limit - 1);
         for (auto p = Player{0}; p < num_players; ++p) {
           values[p] += action_prob * child_values[p];
         }
@@ -214,47 +204,41 @@ std::vector<double> ExpectedReturnsImpl(
 std::vector<double> ExpectedReturns(const State& state,
                                     const std::vector<const Policy*>& policies,
                                     int depth_limit,
-                                    bool use_infostate_get_policy,
-                                    float prob_cut_threshold) {
+                                    bool use_infostate_get_policy) {
   if (use_infostate_get_policy) {
     return ExpectedReturnsImpl(
         state,
         [&policies](Player player, const std::string& info_state) {
           return policies[player]->GetStatePolicy(info_state);
         },
-        depth_limit,
-        prob_cut_threshold);
+        depth_limit);
   } else {
     return ExpectedReturnsImpl(
         state,
         [&policies](Player player, const State& state) {
           return policies[player]->GetStatePolicy(state, player);
         },
-        depth_limit,
-        prob_cut_threshold);
+        depth_limit);
   }
 }
 
 std::vector<double> ExpectedReturns(const State& state,
                                     const Policy& joint_policy, int depth_limit,
-                                    bool use_infostate_get_policy,
-                                    float prob_cut_threshold) {
+                                    bool use_infostate_get_policy) {
   if (use_infostate_get_policy) {
     return ExpectedReturnsImpl(
         state,
         [&joint_policy](Player player, const std::string& info_state) {
           return joint_policy.GetStatePolicy(info_state);
         },
-        depth_limit,
-        prob_cut_threshold);
+        depth_limit);
   } else {
     return ExpectedReturnsImpl(
         state,
         [&joint_policy](Player player, const State& state) {
           return joint_policy.GetStatePolicy(state, player);
         },
-        depth_limit,
-        prob_cut_threshold);
+        depth_limit);
   }
 }
 

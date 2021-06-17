@@ -28,7 +28,7 @@ namespace {
 
 namespace testing = open_spiel::testing;
 
-int CountNumLegalMoves(const ChessBoard& board) {
+int CountNumLegalMoves(const StandardChessBoard& board) {
   int num_legal_moves = 0;
   board.GenerateLegalMoves([&num_legal_moves](const Move&) -> bool {
     ++num_legal_moves;
@@ -43,7 +43,7 @@ void CheckUndo(const char* fen, const char* move_san, const char* fen_after) {
   Player player = state.CurrentPlayer();
   absl::optional<Move> maybe_move = state.Board().ParseSANMove(move_san);
   SPIEL_CHECK_TRUE(maybe_move);
-  Action action = MoveToAction(*maybe_move, state.BoardSize());
+  Action action = MoveToAction(*maybe_move);
   state.ApplyAction(action);
   SPIEL_CHECK_EQ(state.Board().ToFEN(), fen_after);
   state.UndoAction(player, action);
@@ -53,7 +53,7 @@ void CheckUndo(const char* fen, const char* move_san, const char* fen_after) {
 void ApplySANMove(const char* move_san, ChessState* state) {
   absl::optional<Move> maybe_move = state->Board().ParseSANMove(move_san);
   SPIEL_CHECK_TRUE(maybe_move);
-  state->ApplyAction(MoveToAction(*maybe_move, state->BoardSize()));
+  state->ApplyAction(MoveToAction(*maybe_move));
 }
 
 void BasicChessTests() {
@@ -64,7 +64,7 @@ void BasicChessTests() {
 }
 
 void MoveGenerationTests() {
-  ChessBoard start_pos = MakeDefaultBoard();
+  StandardChessBoard start_pos = MakeDefaultBoard();
   SPIEL_CHECK_EQ(CountNumLegalMoves(start_pos), 20);
 }
 
@@ -228,16 +228,15 @@ void MoveConversionTests() {
       int action_index = dist(rng);
       Action action = legal_actions[action_index];
       Move move = ActionToMove(action, chess_state->Board());
-      Action action_from_move = MoveToAction(move, chess_state->BoardSize());
+      Action action_from_move = MoveToAction(move);
       SPIEL_CHECK_EQ(action, action_from_move);
-      const ChessBoard& board = chess_state->Board();
-      ChessBoard fresh_board = chess_state->StartBoard();
+      const StandardChessBoard& board = chess_state->Board();
+      StandardChessBoard fresh_board = chess_state->StartBoard();
       for (Move move : chess_state->MovesHistory()) {
         fresh_board.ApplyMove(move);
       }
       SPIEL_CHECK_EQ(board.ToFEN(), fresh_board.ToFEN());
-      Action action_from_lan =
-          MoveToAction(*board.ParseLANMove(move.ToLAN()), board.BoardSize());
+      Action action_from_lan = MoveToAction(*board.ParseLANMove(move.ToLAN()));
       SPIEL_CHECK_EQ(action, action_from_lan);
       state->ApplyAction(action);
     }

@@ -35,7 +35,7 @@ flags.DEFINE_integer("players", 2, "Number of players")
 def main(_):
   game = pyspiel.load_game(
       FLAGS.game,
-      {"players": FLAGS.players},
+      {"players": pyspiel.GameParameter(FLAGS.players)},
   )
 
   if FLAGS.solver == "cfr":

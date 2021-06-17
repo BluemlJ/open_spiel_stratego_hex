@@ -11,6 +11,7 @@
 // limitations under the License.
 
 #include "open_spiel/games/yorktown.h"
+#include "environments/chess_related/board.h"
 #include "open_spiel/games/yorktown/yorktown_board.h"
 
 #include <algorithm>
@@ -30,6 +31,8 @@ namespace yorktown {
 namespace {
 // Default Parameters.
 
+constexpr int kNumRepetitionsToDraw = 5;
+
 // Facts about the game
 const GameType kGameType{/*short_name=*/"yorktown",
                          /*long_name=*/"Yorktown",
@@ -42,8 +45,8 @@ const GameType kGameType{/*short_name=*/"yorktown",
                          /*min_num_players=*/2,
                          /*provides_information_state_string=*/true,
                          /*provides_information_state_tensor=*/true,
-                         /*provides_observation_string=*/false,
-                         /*provides_observation_tensor=*/false,
+                         /*provides_observation_string=*/true,
+                         /*provides_observation_tensor=*/true,
                          /*parameter_specification=*/
                          {{"players", GameParameter(NumPlayers())},
                          {"strados3", GameParameter(kInitPos)}}};
@@ -55,14 +58,8 @@ std::shared_ptr<const Game> Factory(const GameParameters& params) {
 
 REGISTER_SPIEL_GAME(kGameType, Factory);
 
-/* The following methods describe a way to represent the game in so called planes.
-* Each plane has a size of BoardSize x BoardSize and represents the presence
-* and absence of a given piece type and colour at each square as well as other information.
-* These methods are used within to calculate the InformationStateTensor.
-*/
-
-// Adds a plane to the information state vector independent from the visibility status of a
-// piece, i.e. this plane represents always the piece type even if the piece is hidden.
+// Adds a plane to the information state vector corresponding to the presence
+// and absence of the given piece type and colour at each square.
 void AddPieceTypePlane(Color color, Player player, PieceType piece_type,
                        const StandardYorktownBoard& board,
                        absl::Span<float>::iterator& value_it) {
@@ -77,9 +74,8 @@ void AddPieceTypePlane(Color color, Player player, PieceType piece_type,
   }
 }
 
-// Adds a plane to the information state vector presenting the probabilities of each possible
-// piece type per piece, i.e. if a piece if open the probability for the correct piece type is 1 
-// but if the piece is hidden it is represented by a probability distribution over all piece types.
+// Adds a plane to the information state vector corresponding to the presence
+// and absence of the given piece type and colour at each square.
 void AddProbabilityPieceTypePlane(Color color, Player player, PieceType piece_type,
                        const StandardYorktownBoard& board,
                        absl::Span<float>::iterator& value_it) {
@@ -115,6 +111,8 @@ void AddProbabilityPieceTypePlane(Color color, Player player, PieceType piece_ty
           if(piece_type == PieceType::kFlag || piece_type == PieceType::kBomb){
               if(piece_on_board.hasMoved == true) *value_it++ = 0.0;
               else{
+                // count moved pieces , count invisible , see capturedpieces/livingpieces
+                // (livingBombs-visibleBombs)/(unmoved + invisible Pieces)
                 for(int i = 0; i < 12; ++i){
                   if(piece_type == kPieceTypes[i] && color == Color::kRed){
                     *value_it++ = ((float) board.LivingPieces()[i]-board.find(Piece{color, piece_type, true}).size())/((float) countInvisible-countMovedInvisible);
@@ -124,8 +122,10 @@ void AddProbabilityPieceTypePlane(Color color, Player player, PieceType piece_ty
                   }
                 }
               }
-              // For the flag and bomb its 1/unmoved invisible pieces instead of 1/all invisible pieces
+              // For the flag its 1/unmoved invisible Pieces
           }else{
+             // (livingPieceType-visiblePieceType (if there are more then one of the type))
+             // /(invisible Pieces)
              for(int i = 0; i < 12; ++i){
                 if(piece_type == kPieceTypes[i] && color == Color::kRed){
                   *value_it++ = ((float) board.LivingPieces()[i]-board.find(Piece{color, piece_type, true}).size())/((float) countInvisible);
@@ -141,7 +141,8 @@ void AddProbabilityPieceTypePlane(Color color, Player player, PieceType piece_ty
     }
 
 
-// Adds a plan representing all pieces of a color/player which are still hidden
+// Adds a plane to the information state vector corresponding to the presence
+// and absence of the given piece type and colour at each square.
 void AddUnknownPlane(Color color, const StandardYorktownBoard& board,
                        absl::Span<float>::iterator& value_it) {
   for (int8_t y = 0; y < BoardSize(); ++y) {
@@ -164,41 +165,39 @@ void AddScalarPlane(T val, T min, T max,
     *value_it++ = normalized_val;
 }
 
-// Adds a binary scalar plane representing 0 or 1 on each square.
 void AddBinaryPlane(bool val, absl::Span<float>::iterator& value_it) {
   AddScalarPlane<int>(val ? 1 : 0, 0, 1, value_it);
 }
 
 }  // namespace
 
-// Constructor with a predefined starting position
 YorktownState::YorktownState(std::shared_ptr<const Game> game)
     : State(game),
       start_board_(MakeDefaultBoard()),
       current_board_(start_board_) {
+  repetitions_[current_board_.HashValue()] = 1;
 }
 
-// Constructor with a string defining the starting position. The format of the string
-// is called Strados3 and is defined in Yorktown_board.
 YorktownState::YorktownState(std::shared_ptr<const Game> game, const std::string& strados3)
     : State(game) {
   auto maybe_board = StandardYorktownBoard::BoardFromStraDos3(strados3);
+  SPIEL_CHECK_TRUE(maybe_board);
   start_board_ = *maybe_board;
   current_board_ = start_board_;
-  
+  repetitions_[current_board_.HashValue()] = 1;
 }
 
-// Applies a Move on the board and adds it to the history
 void YorktownState::DoApplyAction(Action action) {
   Color c = OppColor(PlayerToColor(CurrentPlayer()));
   Move move = ActionToMove(action, Board());
   moves_history_.push_back(move);
   Board().ApplyMove(move);
+  ++repetitions_[current_board_.HashValue()];
   cached_legal_actions_.reset();
+  //std::cout << Board().DebugString(OppColor(PlayerToColor(CurrentPlayer()))) << std::endl;
 }
 
-// Generates legal moves, sort them and temporary save them. 
-// It is called Maybe... because it does not check it the current state is a terminal one
+
 void YorktownState::MaybeGenerateLegalActions() const {
   if (!cached_legal_actions_) {
     cached_legal_actions_ = std::vector<Action>();
@@ -212,20 +211,17 @@ void YorktownState::MaybeGenerateLegalActions() const {
   }
 }
 
-// Returns the current legal actions as a vector
 std::vector<Action> YorktownState::LegalActions() const {
   MaybeGenerateLegalActions();
   if (IsTerminal()) return {};
   return *cached_legal_actions_;
 }
 
-// Returns the color of a given player
 Color PlayerToColor(Player p) {
   SPIEL_CHECK_NE(p, kInvalidPlayer);
   return static_cast<Color>(p);
 }
 
-// Construct a Move index based on a square and the destination index
 int EncodeMove(const Square& from_square, int destination_index, int board_size,
                int num_actions_destinations) {
   return (from_square.x * board_size + from_square.y) *
@@ -233,12 +229,11 @@ int EncodeMove(const Square& from_square, int destination_index, int board_size,
          destination_index;
 }
 
-// Reflect the board ranks for the blue player so that both players are playing from the same side
 int8_t ReflectRank(Color to_play, int board_size, int8_t rank) {
   return to_play == Color::kBlue ? board_size - 1 - rank : rank;
 }
 
-// Decodes a Move into an Action. It is the counter part to the ActionToMove method.
+// MoveToAction
 Action MoveToAction(const Move& move) {
   Color color = move.piece.color;
   // We rotate the move to be from player p's perspective.
@@ -271,7 +266,7 @@ Action MoveToAction(const Move& move) {
   
 }
 
-// Converts an Action into a destination square as well as an index
+// ActionToDestinations
 std::pair<Square, int> ActionToDestination(int action, int board_size,
                                            int num_actions_destinations) {
   const int xy = action / num_actions_destinations;
@@ -285,7 +280,7 @@ std::pair<Square, int> ActionToDestination(int action, int board_size,
   return {Square{x, y}, destination_index};
 }
 
-// Converts an Action into a Move. It is the counter part to the MoveToAction method.
+// ActionToMove
 Move ActionToMove(const Action& action, const StandardYorktownBoard& board) {
   SPIEL_CHECK_GE(action, 0);
   SPIEL_CHECK_LT(action, kNumDistinctActions);
@@ -316,17 +311,15 @@ Move ActionToMove(const Action& action, const StandardYorktownBoard& board) {
   return move;
 }
 
-// Returns a string representation of an action (1800 -> a4a5)
 std::string YorktownState::ActionToString(Player player, Action action) const {
   Move move = ActionToMove(action, Board());
   return move.ToLANMove();
 }
 
-// Returns a string representation of the current state
 std::string YorktownState::ToString() const { return Board().ToStraDos3(); 
 }
 
-// Returns a vector with the returns for each player. Returns 0 if not in a terminal state.
+
 std::vector<double> YorktownState::Returns() const {
   auto maybe_final_returns = MaybeFinalReturns();
   if (maybe_final_returns) {
@@ -336,31 +329,27 @@ std::vector<double> YorktownState::Returns() const {
   }
 }
 
-// Returns a string representation of the current information state from the perspective of the given player
 std::string YorktownState::InformationStateString(Player player) const {
-  SPIEL_CHECK_GE(player, 0);
-  SPIEL_CHECK_LT(player, num_players_);
-  return Board().ToStraDos3(PlayerToColor(player));
+   return Board().ToStraDos3();
 }
 
-// Saves the information state tensor from the perspective of the given player at the given postition (values)
 void YorktownState::InformationStateTensor(Player player,
                                    absl::Span<float> values) const {
  
+ 
   auto value_it = values.begin();
 
-  /* This lines add perfect information planes for each piece type per player. 
-  * for (const auto& piece_type : kPieceTypes) {
-  *   AddPieceTypePlane(Color::kRed, player, piece_type, Board(), value_it);
-  *   AddPieceTypePlane(Color::kBlue, player, piece_type, Board(), value_it);
-  * }
-  */
-
-  // Piece configuration with probability representation
+  // Piece configuration. (without Probability)
   for (const auto& piece_type : kPieceTypes) {
-    AddProbabilityPieceTypePlane(Color::kRed, player, piece_type, Board(), value_it);
-    AddProbabilityPieceTypePlane(Color::kBlue, player, piece_type, Board(), value_it);
+    AddPieceTypePlane(Color::kRed, player, piece_type, Board(), value_it);
+    AddPieceTypePlane(Color::kBlue, player, piece_type, Board(), value_it);
   }
+
+  // Piece configuration. (with Probability)
+  //for (const auto& piece_type : kPieceTypes) {
+  //   AddProbabilityPieceTypePlane(Color::kRed, player, piece_type, Board(), value_it);
+  //   AddProbabilityPieceTypePlane(Color::kBlue, player, piece_type, Board(), value_it);
+  // }
 
   AddUnknownPlane(Color::kRed, Board(), value_it);
   AddUnknownPlane(Color::kBlue, Board(), value_it);
@@ -371,20 +360,144 @@ void YorktownState::InformationStateTensor(Player player,
  
   // Side to play.
   AddScalarPlane(ColorToPlayer(Board().ToPlay()), 0, 1, value_it);
+
+  int repetitions;
+  const auto entry = repetitions_.find(Board().HashValue());
+  if(entry == repetitions_.end()) repetitions = 0;
+  else repetitions = entry->second;
+
+  // Num repetitions for the current board.
+  AddScalarPlane(repetitions, 1, 5, value_it);
+  
+  // Why fail?
+  //SPIEL_CHECK_EQ(value_it, values.end());
+}
+
+std::string YorktownState::ObservationString(Player player) const {
+  return Board().ToStraDos3(PlayerToColor(player));
+}
+
+void YorktownState::ObservationTensor(Player player,
+                                   absl::Span<float> values) const {
+  
+  auto value_it = values.begin();
+
+  // Piece configuration. (without Probability)
+  //for (const auto& piece_type : kPieceTypes) {
+  //  AddPieceTypePlane(Color::kRed, player, piece_type, Board(), value_it);
+  //  AddPieceTypePlane(Color::kBlue, player, piece_type, Board(), value_it);
+  //}
+
+  // Piece configuration. (with Probability)
+   for (const auto& piece_type : kPieceTypes) {
+     AddProbabilityPieceTypePlane(Color::kRed, player, piece_type, Board(), value_it);
+     AddProbabilityPieceTypePlane(Color::kBlue, player, piece_type, Board(), value_it);
+   }
+
+  AddUnknownPlane(Color::kRed, Board(), value_it);
+  AddUnknownPlane(Color::kBlue, Board(), value_it);
+  
+  AddPieceTypePlane(Color::kEmpty, player, PieceType::kEmpty, Board(), value_it);
+  AddPieceTypePlane(Color::kEmpty, player, PieceType::kLake, Board(), value_it);
  
+ 
+  // Side to play.
+  AddScalarPlane(ColorToPlayer(Board().ToPlay()), 0, 1, value_it);
+
+  int repetitions;
+  const auto entry = repetitions_.find(Board().HashValue());
+  if(entry == repetitions_.end()) repetitions = 0;
+  else repetitions = entry->second;
+
+  // Num repetitions for the current board.
+  AddScalarPlane(repetitions, 1, 5, value_it);
+  // Why fail?
+  //SPIEL_CHECK_EQ(value_it, values.end());
 }
 
-// Clones the current YorktownState and returns a unique pointer to the cloned state object.
 std::unique_ptr<State> YorktownState::Clone() const {
-  //return CloneAndRandomizeToState();
-  return std::unique_ptr<State>(new YorktownState(*this));
+  return CloneAndRandomizeToState();
+  //return std::unique_ptr<State>(new YorktownState(*this));
 }
 
-// Checks if the current state is a terminal state and if so returns the reward for each player in form of a tuple.
-// TODO: Optimize
+std::unique_ptr<State> YorktownState::CloneAndRandomizeToState() const {
+  return std::unique_ptr<State>(new YorktownState(*CloneAndRandomize()));
+}
+
+std::unique_ptr<YorktownState> YorktownState::CloneAndRandomize() const {
+  auto state = new YorktownState(*this);
+
+  std::vector<PieceType> p;
+
+  /*
+  if(OppColor(PlayerToColor(CurrentPlayer())) == Color::kBlue){
+    for(int i = 12; i < 24; ++i){
+      pieces.push_back(Board().LivingPieces()[i]);
+    }
+  }else{
+    for(int i = 0; i < 12; ++i){
+      pieces.push_back(Board().LivingPieces()[i]);
+    }
+  }
+  */
+ 
+  for (int8_t y = 0; y < BoardSize(); ++y) {
+    for (int8_t x = 0; x < BoardSize(); ++x) {
+      Piece piece_on_board = Board().at(Square{x, y}); 
+      if(!Board().IsVisible(Square{x, y}) && piece_on_board.color == OppColor(PlayerToColor(CurrentPlayer()))){
+        p.push_back(piece_on_board.type);
+      }
+    }
+  }
+
+
+
+  unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+  auto rng = std::default_random_engine {seed};
+  std::shuffle(p.begin(), p.end(), rng);
+
+  // unmoved pieces
+  for (int8_t y = 0; y < BoardSize(); ++y) {
+    for (int8_t x = 0; x < BoardSize(); ++x) {
+      Piece piece_on_board = state->Board().at(Square{x, y});
+      if(piece_on_board.isVisible == false){
+        if(piece_on_board.color == OppColor(PlayerToColor(CurrentPlayer())) && piece_on_board.hasMoved == false){
+          if(!p.empty()){
+          state->Board().set_square(Square{x, y}, Piece{piece_on_board.color, p.back(), true});
+          p.pop_back();
+          }else{
+            std::cout << "howwww" << std::endl;
+          }
+        }
+      }
+    }
+  }
+
+  // the rest
+  for (int8_t y = 0; y < BoardSize(); ++y) {
+    for (int8_t x = 0; x < BoardSize(); ++x) {
+      Piece piece_on_board = state->Board().at(Square{x, y});
+      if(piece_on_board.isVisible == false){
+        if(piece_on_board.color == OppColor(PlayerToColor(CurrentPlayer()))){
+          if(!p.empty()){
+          state->Board().set_square(Square{x, y}, Piece{piece_on_board.color, p.back(), true});
+          p.pop_back();
+          }else{
+            std::cout << "howwww" << std::endl;
+          }
+        }else{
+          state->Board().set_square(Square{x, y}, Piece{piece_on_board.color, piece_on_board.type, true});
+        }
+      }
+    }
+  }
+  return std::unique_ptr<YorktownState>(state);
+}
+
 void YorktownState::UndoAction(Player player, Action action) {
   // TODO: Make this fast by storing undoing the action instead or replaying the hole game
   SPIEL_CHECK_GE(moves_history_.size(), 1);
+  --repetitions_[current_board_.HashValue()];
   moves_history_.pop_back();
   history_.pop_back();
   current_board_ = start_board_;
@@ -393,24 +506,39 @@ void YorktownState::UndoAction(Player player, Action action) {
   }
 }
 
+bool YorktownState::IsRepetitionDraw() const {
+  const auto entry = repetitions_.find(Board().HashValue());
+  if(entry == repetitions_.end()) return 0;
+  return entry->second >= kNumRepetitionsToDraw;
+}
 
 void YorktownState::DebugString(){
   std::cout << Board().DebugString() << std::endl;
 }
 
+
 absl::optional<std::vector<double>> YorktownState::MaybeFinalReturns() const {
   
-  
+  // RepetitionsDraw
+  if (IsRepetitionDraw()) {
+    //std::cout << "DRAW";
+    //std::cout << Board().DebugString() << std::endl;
+    return std::vector<double>{DrawUtility(), DrawUtility()};
+  }
 
-  // Check if the red player has lost his flag
+  // Check if one player has lost his flag
   if(Board().LivingPieces()[0] != 1){
+    //std::cout << "RF Missing";
+    //std::cout << Board().DebugString() << std::endl;
     return std::vector<double>{LossUtility(), WinUtility()};
     
   }
 
-  // Check if the blue player has lost his flag
   if(Board().LivingPieces()[12] != 1){
+    //std::cout << "BF Missing";
+    //std::cout << Board().DebugString() << std::endl;
     return std::vector<double>{WinUtility(), LossUtility()};
+    
   }
 
   // Compute and cache the legal actions.
@@ -419,7 +547,8 @@ absl::optional<std::vector<double>> YorktownState::MaybeFinalReturns() const {
   bool have_legal_moves = !cached_legal_actions_->empty();
   
 
-  // If we don't have legal moves we arenÄt able to move and lose the game.
+  // If we don't have legal moves we are either stalemated or checkmated,
+  // depending on whether we are in check or not.
   if(!have_legal_moves) {
     //std::cout << "NLmoves";
     std::vector<double> returns(NumPlayers());
@@ -429,22 +558,41 @@ absl::optional<std::vector<double>> YorktownState::MaybeFinalReturns() const {
     return returns;
     
   }
-
-  // Restricts the number of possible plys until it is called a draw. 
-  if(Board().Movenumber() > 3000){
+  if(Board().Movenumber() > 1000){
+    std::cout << "MN " << Board().Movenumber() << std::endl;
     return std::vector<double>{DrawUtility(), DrawUtility()};
   }
+
+  //if(Board().HasSufficientMaterial() == false) {
+  //  return std::vector<double>{DrawUtility(), DrawUtility()};
+  //}
 
   return std::nullopt;
 }
 
-
 int YorktownGame::MaxGameLength() const {
-  // I do not have any clue how to calculate this. 
+  // I do not have any clue how to calculate this
   return 3000;
 }
 
+//TODO
+std::unique_ptr<State> YorktownGame::DeserializeState(const std::string& str) const {
+  if (str.length() == 0) {
+    return NewInitialState();
+  }
+  std::vector<std::string> lines = absl::StrSplit(str, '\n');
+  std::unique_ptr<State> state = NewInitialState(lines[0]);
+  
+  for (int i = 1; i < lines.size(); ++i) {
+    if (lines[i].empty()) continue;
+    Action action = static_cast<Action>(std::stol(lines[i]));
+    state->ApplyAction(action);
+  }
+  return state;
+}
+
 YorktownGame::YorktownGame(const GameParameters& params) : Game(kGameType, params) {}
+
 
 }  // namespace yorktown
 }  // namespace open_spiel

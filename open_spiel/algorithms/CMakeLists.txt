@@ -51,24 +51,18 @@ add_library (algorithms OBJECT
   mcts.h
   minimax.cc
   minimax.h
-  observation_history.h
-  observation_history.cc
   oos.h
   oos.cc
   outcome_sampling_mccfr.cc
   outcome_sampling_mccfr.h
   policy_iteration.cc
   policy_iteration.h
+  sarsa.cc
+  sarsa.h
   state_distribution.cc
   state_distribution.h
-  tabular_best_response_mdp.cc
-  tabular_best_response_mdp.h
   tabular_exploitability.cc
   tabular_exploitability.h
-  tabular_q_learning.cc
-  tabular_q_learning.h
-  tabular_sarsa.cc
-  tabular_sarsa.h
   tensor_game_utils.cc
   tensor_game_utils.h
   trajectories.cc
@@ -78,7 +72,7 @@ add_library (algorithms OBJECT
 )
 target_include_directories (algorithms PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-if (${OPEN_SPIEL_BUILD_WITH_ORTOOLS})
+if (${BUILD_WITH_ORTOOLS})
   add_subdirectory (ortools)
 endif()
 
@@ -146,10 +140,6 @@ add_executable(minimax_test minimax_test.cc
     $<TARGET_OBJECTS:algorithms> ${OPEN_SPIEL_OBJECTS})
 add_test(minimax_test minimax_test)
 
-add_executable(observation_history_test observation_history_test.cc
-    $<TARGET_OBJECTS:algorithms> ${OPEN_SPIEL_OBJECTS})
-add_test(observation_history_test observation_history_test)
-
 add_executable(oos_test oos_test.cc
     $<TARGET_OBJECTS:algorithms> ${OPEN_SPIEL_OBJECTS})
 add_test(oos_test oos_test)
@@ -161,10 +151,6 @@ add_test(outcome_sampling_mccfr_test outcome_sampling_mccfr_test)
 add_executable(state_distribution_test state_distribution_test.cc
     $<TARGET_OBJECTS:algorithms> ${OPEN_SPIEL_OBJECTS})
 add_test(state_distribution_test state_distribution_test)
-
-add_executable(tabular_best_response_mdp_test tabular_best_response_mdp_test.cc
-    $<TARGET_OBJECTS:algorithms> ${OPEN_SPIEL_OBJECTS})
-add_test(tabular_best_response_mdp_test tabular_best_response_mdp_test)
 
 add_executable(tabular_exploitability_test tabular_exploitability_test.cc
     $<TARGET_OBJECTS:algorithms> ${OPEN_SPIEL_OBJECTS})
@@ -179,5 +165,3 @@ add_executable(trajectories_test trajectories_test.cc
 add_test(trajectories_test trajectories_test)
 
 add_subdirectory (alpha_zero)
-add_subdirectory (alpha_zero_torch)
-add_subdirectory (dqn_torch)

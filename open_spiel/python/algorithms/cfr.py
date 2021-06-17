@@ -114,7 +114,7 @@ def _update_average_policy(average_policy, info_state_nodes):
 
 
 class _CFRSolverBase(object):
-  r"""A base class for both CFR and CFR-BR.
+  r"""A base classe for both CFR and CFR-BR.
 
   The main iteration loop is implemented in `evaluate_and_update_policy`:
 
@@ -163,6 +163,8 @@ class _CFRSolverBase(object):
 
     self._game = game
     self._num_players = game.num_players()
+    self._root_node = self._game.new_initial_state()
+
     self._root_node = self._game.new_initial_state()
 
     # This is for returning the current policy and average policy to a caller

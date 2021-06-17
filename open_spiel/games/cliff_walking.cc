@@ -178,7 +178,6 @@ void CliffWalkingState::UndoAction(Player player, Action move) {
   player_col_ = std::min(std::max(player_col_, 0), width_ - 1);
   --time_counter_;
   history_.pop_back();
-  --move_number_;
 }
 
 std::unique_ptr<State> CliffWalkingState::Clone() const {

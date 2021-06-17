@@ -363,19 +363,17 @@ void TestCCECEDistCFRGoofSpiel() {
     }
 
     CorrelationDevice mu = UniformCorrelationDevice(policies);
-    CorrDistInfo cce_dist_info = CCEDist(*game, mu);
+    double cce_dist = CCEDist(*game, mu);
     std::cout << "num_iterations: " << num_iterations
-              << ", cce_dist: " << cce_dist_info.dist_value << std::endl;
+              << ", cce_dist: " << cce_dist << std::endl;
 
     // Disabled in test because it's really slow.
     // double ce_dist = CEDist(*game, DeterminizeCorrDev(mu));
     // std::cout << "num_iterations: " << num_iterations
     //          << ", approximate ce_dist: " << ce_dist << std::endl;
-    CorrDistInfo ce_dist_info =
-        CEDist(*game, SampledDeterminizeCorrDev(mu, 100));
+    double ce_dist = CEDist(*game, SampledDeterminizeCorrDev(mu, 100));
     std::cout << "num_iterations: " << num_iterations
-              << ", approximate ce_dist: " << ce_dist_info.dist_value
-              << std::endl;
+              << ", approximate ce_dist: " << ce_dist << std::endl;
   }
 }
 }  // namespace

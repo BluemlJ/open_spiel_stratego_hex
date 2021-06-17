@@ -361,17 +361,16 @@ void BreakthroughState::UndoAction(Player player, Action action) {
   SetBoard(r2, c2, CellState::kEmpty);
   if (capture) {
     if (board(r1, c1) == CellState::kWhite) {
-      // It was a white move: put back the black piece.
       SetBoard(r2, c2, CellState::kBlack);
-      pieces_[kBlackPlayerId]++;
+      // If the piece being captured is white, decrement the white piece count.
+      pieces_[1]++;
     } else if (board(r1, c1) == CellState::kBlack) {
-      // It was a black move: put back the white piece.
       SetBoard(r2, c2, CellState::kWhite);
-      pieces_[kWhitePlayerId]++;
+      // Otherwise, decrement the black piece count.
+      pieces_[0]++;
     }
   }
   history_.pop_back();
-  --move_number_;
 }
 
 std::unique_ptr<State> BreakthroughState::Clone() const {

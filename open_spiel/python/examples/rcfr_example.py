@@ -60,7 +60,8 @@ flags.DEFINE_float("step_size", 0.01, "The ADAM (AMSGrad) optimizer step size.")
 
 
 def main(_):
-  game = pyspiel.load_game(FLAGS.game, {"players": FLAGS.players})
+  game = pyspiel.load_game(FLAGS.game,
+                           {"players": pyspiel.GameParameter(FLAGS.players)})
 
   models = []
   for _ in range(game.num_players()):

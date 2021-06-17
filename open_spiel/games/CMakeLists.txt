@@ -39,10 +39,6 @@ set(GAME_SOURCES
   coordinated_mp.h
   cursor_go.cc
   cursor_go.h
-  dark_chess.cc
-  dark_chess.h
-  dark_hex.cc
-  dark_hex.h
   deep_sea.cc
   deep_sea.h
   efg_game.cc
@@ -67,8 +63,6 @@ set(GAME_SOURCES
   hearts.h
   hex.cc
   hex.h
-  kriegspiel.cc
-  kriegspiel.h
   kuhn_poker.cc
   kuhn_poker.h
   laser_tag.cc
@@ -84,10 +78,6 @@ set(GAME_SOURCES
   matching_pennies_3p.cc
   matching_pennies_3p.h
   matrix_games.cc
-  mfg/crowd_modelling.cc
-  mfg/crowd_modelling.h
-  mfg/crowd_modelling_2d.cc
-  mfg/crowd_modelling_2d.h
   negotiation.cc
   negotiation.h
   nfg_game.cc
@@ -140,10 +130,10 @@ set(GAME_SOURCES
   yorktown/yorktown_board.h
 )
 
-if (${OPEN_SPIEL_BUILD_WITH_HANABI})
+if (${BUILD_WITH_HANABI})
   set(GAME_SOURCES ${GAME_SOURCES} hanabi.cc hanabi.h)
 endif()
-if (${OPEN_SPIEL_BUILD_WITH_ACPC})
+if (${BUILD_WITH_ACPC})
   set(GAME_SOURCES ${GAME_SOURCES} universal_poker.cc universal_poker.h)
 endif()
 
@@ -151,13 +141,13 @@ add_library (games OBJECT ${GAME_SOURCES})
 
 target_include_directories (games PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-if (${OPEN_SPIEL_BUILD_WITH_HANABI})
+if (${BUILD_WITH_HANABI})
   add_subdirectory(hanabi)
 endif()
-if (${OPEN_SPIEL_BUILD_WITH_ACPC})
+if (${BUILD_WITH_ACPC})
   add_subdirectory(universal_poker)
 endif()
-if (${OPEN_SPIEL_BUILD_WITH_GAMUT})
+if (${BUILD_WITH_GAMUT})
   add_subdirectory(gamut)
 endif()
 
@@ -287,26 +277,10 @@ add_executable(coordinated_mp_test coordinated_mp_test.cc ${OPEN_SPIEL_OBJECTS}
         $<TARGET_OBJECTS:algorithms>)
 add_test(coordinated_mp_test coordinated_mp_test)
 
-add_executable(crowd_modelling_test mfg/crowd_modelling_test.cc ${OPEN_SPIEL_OBJECTS}
-               $<TARGET_OBJECTS:tests>)
-add_test(crowd_modelling_test crowd_modelling_test)
-
-add_executable(crowd_modelling_2d_test mfg/crowd_modelling_2d_test.cc ${OPEN_SPIEL_OBJECTS}
-               $<TARGET_OBJECTS:tests>)
-add_test(crowd_modelling_2d_test crowd_modelling_2d_test)
-
 add_executable(cursor_go_test cursor_go_test.cc
                ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(cursor_go_test cursor_go_test)
-
-add_executable(dark_chess_test dark_chess_test.cc ${OPEN_SPIEL_OBJECTS}
-        $<TARGET_OBJECTS:tests>)
-add_test(dark_chess_test dark_chess_test)
-
-add_executable(dark_hex_test dark_hex_test.cc ${OPEN_SPIEL_OBJECTS}
-               $<TARGET_OBJECTS:tests>)
-add_test(dark_hex_test dark_hex_test)
 
 add_executable(deep_sea_test deep_sea_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
@@ -344,10 +318,6 @@ add_test(hearts_test hearts_test)
 add_executable(hex_test hex_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(hex_test hex_test)
-
-add_executable(kriegspiel_test kriegspiel_test.cc ${OPEN_SPIEL_OBJECTS}
-        $<TARGET_OBJECTS:tests>)
-add_test(kriegspiel_test kriegspiel_test)
 
 add_executable(kuhn_poker_test kuhn_poker_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>
@@ -470,12 +440,11 @@ add_executable(trade_comm_test trade_comm_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(trade_comm_test trade_comm_test)
 
-if (${OPEN_SPIEL_BUILD_WITH_ACPC})
+if (${BUILD_WITH_ACPC})
   add_executable(universal_poker_test universal_poker_test.cc ${OPEN_SPIEL_OBJECTS}
           $<TARGET_OBJECTS:tests>
           $<TARGET_OBJECTS:algorithms>)
-  add_test(universal_poker_test universal_poker_test
-           --subgames_data_dir=${CMAKE_CURRENT_SOURCE_DIR}/universal_poker/endgames)
+  add_test(universal_poker_test.cc universal_poker_test)
 endif()
 
 add_executable(y_test y_test.cc ${OPEN_SPIEL_OBJECTS}
@@ -486,5 +455,10 @@ add_executable(yorktown_test yorktown_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>
                $<TARGET_OBJECTS:algorithms>)
 add_test(yorktown_test yorktown_test)
+
+#add_executable(yorktown_board_test yorktown/yorktown_board_test.cc ${OPEN_SPIEL_OBJECTS}
+#               $<TARGET_OBJECTS:tests>
+#               $<TARGET_OBJECTS:algorithms>)
+#add_test(yorktown_test yorktown_test)
 
 

@@ -157,10 +157,12 @@ function ArgsLibParse {
   fi
 
   # Parse arguments in the form --name=value
-  for arg in $@
+  read -r -a arguments <<< $@
+  for (( i=0; i<${#arguments[@]}; i++ ))
   do
-    [[ $arg == --* ]] || _die "Invalid syntax for argument name: $arg"
-    _parse_arg $arg
+    # Arguments must start with --
+    [[ ${arguments[$i]} == --* ]] || _die "Invalid syntax for argument name: ${arguments[$i]}"
+    _parse_arg ${arguments[$i]}
   done
 }
 

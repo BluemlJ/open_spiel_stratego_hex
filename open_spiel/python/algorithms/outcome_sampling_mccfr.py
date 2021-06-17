@@ -19,15 +19,20 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
-import open_spiel.python.algorithms.mccfr as mccfr
 import pyspiel
 
+# Indices in the information sets for the regrets and average policy sums.
+_REGRET_INDEX = 0
+_AVG_POLICY_INDEX = 1
 
-class OutcomeSamplingSolver(mccfr.MCCFRSolverBase):
+
+class OutcomeSamplingSolver(object):
   """An implementation of outcome sampling MCCFR."""
 
   def __init__(self, game):
-    super().__init__(game)
+    self._game = game
+    self._infostates = {}  # infostate keys -> [regrets, avg strat]
+    self._num_players = game.num_players()
     # This is the epsilon exploration factor. When sampling episodes, the
     # updating player will sampling according to expl * uniform + (1 - expl) *
     # current_policy.
@@ -48,6 +53,76 @@ class OutcomeSamplingSolver(mccfr.MCCFRSolverBase):
       state = self._game.new_initial_state()
       self._episode(
           state, update_player, my_reach=1.0, opp_reach=1.0, sample_reach=1.0)
+
+  def _lookup_infostate_info(self, info_state_key, num_legal_actions):
+    """Looks up an information set table for the given key.
+
+    Args:
+      info_state_key: information state key (string identifier).
+      num_legal_actions: number of legal actions at this information state.
+
+    Returns:
+      A list of:
+        - the average regrets as a numpy array of shape [num_legal_actions]
+        - the average strategy as a numpy array of shape
+        [num_legal_actions].
+          The average is weighted using `my_reach`
+    """
+    retrieved_infostate = self._infostates.get(info_state_key, None)
+    if retrieved_infostate is not None:
+      return retrieved_infostate
+
+    # Start with a small amount of regret and total accumulation, to give a
+    # uniform policy: this will get erased fast.
+    self._infostates[info_state_key] = [
+        np.ones(num_legal_actions, dtype=np.float64) / 1e6,
+        np.ones(num_legal_actions, dtype=np.float64) / 1e6,
+    ]
+    return self._infostates[info_state_key]
+
+  def _add_regret(self, info_state_key, action_idx, amount):
+    self._infostates[info_state_key][_REGRET_INDEX][action_idx] += amount
+
+  def _add_avstrat(self, info_state_key, action_idx, amount):
+    self._infostates[info_state_key][_AVG_POLICY_INDEX][action_idx] += amount
+
+  def callable_avg_policy(self):
+    """Returns the average joint policy as a callable.
+
+    The callable has a signature of the form string (information
+    state key) -> list of (action, prob).
+    """
+
+    def wrap(state):
+      info_state_key = state.information_state_string(state.current_player())
+      legal_actions = state.legal_actions()
+      infostate_info = self._lookup_infostate_info(info_state_key,
+                                                   len(legal_actions))
+      avstrat = (
+          infostate_info[_AVG_POLICY_INDEX] /
+          infostate_info[_AVG_POLICY_INDEX].sum())
+      return [(legal_actions[i], avstrat[i]) for i in range(len(legal_actions))]
+
+    return wrap
+
+  def _regret_matching(self, regrets, num_legal_actions):
+    """Applies regret matching to get a policy.
+
+    Args:
+      regrets: numpy array of regrets for each action.
+      num_legal_actions: number of legal actions at this state.
+
+    Returns:
+      numpy array of the policy indexed by the index of legal action in the
+      list.
+    """
+    positive_regrets = np.maximum(regrets,
+                                  np.zeros(num_legal_actions, dtype=np.float64))
+    sum_pos_regret = positive_regrets.sum()
+    if sum_pos_regret <= 0:
+      return np.ones(num_legal_actions, dtype=np.float64) / num_legal_actions
+    else:
+      return positive_regrets / sum_pos_regret
 
   def _baseline(self, state, info_state, aidx):  # pylint: disable=unused-argument
     # Default to vanilla outcome sampling
@@ -92,7 +167,7 @@ class OutcomeSamplingSolver(mccfr.MCCFRSolverBase):
     num_legal_actions = len(legal_actions)
     infostate_info = self._lookup_infostate_info(info_state_key,
                                                  num_legal_actions)
-    policy = self._regret_matching(infostate_info[mccfr.REGRET_INDEX],
+    policy = self._regret_matching(infostate_info[_REGRET_INDEX],
                                    num_legal_actions)
     if cur_player == update_player:
       uniform_policy = (
@@ -124,7 +199,7 @@ class OutcomeSamplingSolver(mccfr.MCCFRSolverBase):
 
     if cur_player == update_player:
       # Now the regret and avg strategy updates.
-      policy = self._regret_matching(infostate_info[mccfr.REGRET_INDEX],
+      policy = self._regret_matching(infostate_info[_REGRET_INDEX],
                                      num_legal_actions)
 
       # Estimate for the counterfactual value of the policy.

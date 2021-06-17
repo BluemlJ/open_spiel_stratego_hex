@@ -35,6 +35,7 @@ import copy
 from absl import app
 from absl import flags
 import numpy as np
+from six.moves import range
 import tensorflow.compat.v1 as tf
 
 from open_spiel.python import rl_environment

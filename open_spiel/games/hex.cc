@@ -42,8 +42,6 @@ const GameType kGameType{/*short_name=*/"hex",
                          /*parameter_specification=*/
                          {
                              {"board_size", GameParameter(kDefaultBoardSize)},
-                             {"row_size", GameParameter(kDefaultBoardSize)},
-                             {"col_size", GameParameter(kDefaultBoardSize)},
                          }};
 
 std::shared_ptr<const Game> Factory(const GameParameters& params) {
@@ -53,18 +51,6 @@ std::shared_ptr<const Game> Factory(const GameParameters& params) {
 REGISTER_SPIEL_GAME(kGameType, Factory);
 
 }  // namespace
-
-CellState PlayerToState(Player player) {
-  switch (player) {
-    case 0:
-      return CellState::kBlack;
-    case 1:
-      return CellState::kWhite;
-    default:
-      SpielFatalError(absl::StrCat("Invalid player id ", player));
-      return CellState::kEmpty;
-  }
-}
 
 CellState HexState::PlayerAndActionToState(Player player, Action move) const {
   // This function returns the CellState resulting from the given move.
@@ -81,9 +67,9 @@ CellState HexState::PlayerAndActionToState(Player player, Action move) const {
     case 0: {
       bool north_connected = false;
       bool south_connected = false;
-      if (move < row_size_) {  // First row
+      if (move < board_size_) {  // First row
         north_connected = true;
-      } else if (move >= row_size_ * (col_size_ - 1)) {  // Last row
+      } else if (move >= board_size_ * (board_size_ - 1)) {  // Last row
         south_connected = true;
       }
       for (int neighbour : AdjacentCells(move)) {
@@ -106,9 +92,9 @@ CellState HexState::PlayerAndActionToState(Player player, Action move) const {
     case 1: {
       bool west_connected = false;
       bool east_connected = false;
-      if (move % row_size_ == 0) {  // First column
+      if (move % board_size_ == 0) {  // First column
         west_connected = true;
-      } else if (move % row_size_ == row_size_ - 1) {  // Last column
+      } else if (move % board_size_ == board_size_ - 1) {  // Last column
         east_connected = true;
       }
       for (int neighbour : AdjacentCells(move)) {
@@ -164,6 +150,7 @@ void HexState::DoApplyAction(Action move) {
   SPIEL_CHECK_EQ(board_[move], CellState::kEmpty);
   CellState move_cell_state = PlayerAndActionToState(CurrentPlayer(), move);
   board_[move] = move_cell_state;
+
   if (move_cell_state == CellState::kBlackWin) {
     result_black_perspective_ = 1;
   } else if (move_cell_state == CellState::kWhiteWin) {
@@ -212,59 +199,42 @@ std::string HexState::ActionToString(Player player, Action action_id) const {
   // This does not comply with the Hex Text Protocol
   // TODO(author8): Make compliant with HTP
   return absl::StrCat(StateToString(PlayerAndActionToState(player, action_id)),
-                      "(", action_id % col_size_, ",", action_id / row_size_,
-                      ")");
-}
-
-std::vector<int> HexState::AdjacentCellsBoardSize2(int cell) const {
-  if (cell == 0 || cell == 3) {
-    return {1, 2};
-  } else if (cell == 1) {
-    return {0, 2, 3};
-  } else if (cell == 2) {
-    return {0, 1, 3};
-  } else {
-    SpielFatalError(absl::StrCat("Unexpected cell value: ", cell));
-  }
+                      "(", action_id % board_size_, ",",
+                      action_id / board_size_, ")");
 }
 
 std::vector<int> HexState::AdjacentCells(int cell) const {
-  if (row_size_ == 2) {
-    // Special case for board size 2 where connections can form between the two
-    // edges of the board.
-    return AdjacentCellsBoardSize2(cell);
-  }
-  std::vector<int> neighbours = {};
-  neighbours = {cell - row_size_, cell - row_size_ + 1, cell - 1,
-                cell + 1,         cell + row_size_ - 1, cell + row_size_};
+  std::vector<int> neighbours = {
+      cell - board_size_, cell - board_size_ + 1, cell - 1,
+      cell + 1,           cell + board_size_ - 1, cell + board_size_};
   for (int i = kMaxNeighbours - 1; i >= 0; i--) {
     // Check for invalid neighbours and remove
-    // Iterate in reverse to avoid changing the index of a candidate neighbour
-    if (neighbours[i] < 0 || (neighbours[i] >= row_size_ * col_size_) ||
-        (neighbours[i] % row_size_ == 0 && cell % row_size_ == row_size_ - 1) ||
-        (neighbours[i] % row_size_ == row_size_ - 1 && cell % row_size_ == 0)) {
+    // Iterating in reverse to avoid changing the index of a candidate neighbour
+    if (neighbours[i] < 0 || (neighbours[i] >= board_size_ * board_size_) ||
+        (neighbours[i] % board_size_ == 0 &&
+         cell % board_size_ == board_size_ - 1) ||
+        (neighbours[i] % board_size_ == board_size_ - 1 &&
+         cell % board_size_ == 0)) {
       neighbours.erase(neighbours.begin() + i);
     }
   }
   return neighbours;
 }
 
-HexState::HexState(std::shared_ptr<const Game> game, int row_size, int col_size)
-    : State(game),
-      row_size_(row_size > col_size ? row_size : col_size),
-      col_size_(row_size < col_size ? row_size : col_size) {
-  // for all row_sizes & col_sizes -> row_sizes_ >= col_sizes_
-  board_.resize(row_size * col_size, CellState::kEmpty);
+HexState::HexState(std::shared_ptr<const Game> game, int board_size)
+    : State(game), board_size_(board_size) {
+  board_.resize(board_size * board_size, CellState::kEmpty);
 }
 
 std::string HexState::ToString() const {
   std::string str;
   // Each cell has the cell plus a space
   // nth line has n spaces, and 1 "\n", except last line has no "\n"
-  str.reserve(2 * row_size_ * col_size_ + col_size_ * (row_size_ + 1) / 2 - 1);
+  str.reserve(2 * board_size_ * board_size_ +
+              board_size_ * (board_size_ + 1) / 2 - 1);
   int line_num = 0;
   for (int cell = 0; cell < board_.size(); ++cell) {
-    if (cell && !(cell % col_size_)) {
+    if (cell && !(cell % board_size_)) {
       absl::StrAppend(&str, "\n");
       line_num++;
       absl::StrAppend(&str, std::string(line_num, ' '));
@@ -311,12 +281,6 @@ std::unique_ptr<State> HexState::Clone() const {
 }
 
 HexGame::HexGame(const GameParameters& params)
-    : Game(kGameType, params),
-      // Use board_size as the default value of row_size and col_size
-      row_size_(
-          ParameterValue<int>("row_size", ParameterValue<int>("board_size"))),
-      col_size_(
-          ParameterValue<int>("col_size", ParameterValue<int>("board_size"))) {}
-
+    : Game(kGameType, params), board_size_(ParameterValue<int>("board_size")) {}
 }  // namespace hex
 }  // namespace open_spiel

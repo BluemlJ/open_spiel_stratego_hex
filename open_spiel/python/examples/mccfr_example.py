@@ -21,6 +21,7 @@ from __future__ import print_function
 from absl import app
 from absl import flags
 
+from open_spiel.python import policy
 from open_spiel.python.algorithms import exploitability
 from open_spiel.python.algorithms import external_sampling_mccfr as external_mccfr
 from open_spiel.python.algorithms import outcome_sampling_mccfr as outcome_mccfr
@@ -30,7 +31,7 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_enum(
     "sampling",
-    "outcome",
+    "external",
     ["external", "outcome"],
     "Sampling for the MCCFR solver",
 )
@@ -42,7 +43,8 @@ flags.DEFINE_integer("print_freq", 1000,
 
 
 def main(_):
-  game = pyspiel.load_game(FLAGS.game, {"players": FLAGS.players})
+  game = pyspiel.load_game(FLAGS.game,
+                           {"players": pyspiel.GameParameter(FLAGS.players)})
   if FLAGS.sampling == "external":
     cfr_solver = external_mccfr.ExternalSamplingSolver(
         game, external_mccfr.AverageType.SIMPLE)
@@ -51,7 +53,10 @@ def main(_):
   for i in range(FLAGS.iterations):
     cfr_solver.iteration()
     if i % FLAGS.print_freq == 0:
-      conv = exploitability.nash_conv(game, cfr_solver.average_policy())
+      conv = exploitability.nash_conv(
+          game,
+          policy.tabular_policy_from_callable(game,
+                                              cfr_solver.callable_avg_policy()))
       print("Iteration {} exploitability {}".format(i, conv))
 
 

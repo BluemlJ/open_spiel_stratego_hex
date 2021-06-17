@@ -18,7 +18,6 @@
 #include <numeric>
 
 #include "open_spiel/abseil-cpp/absl/algorithm/container.h"
-#include "open_spiel/abseil-cpp/absl/container/flat_hash_map.h"
 #include "open_spiel/abseil-cpp/absl/strings/numbers.h"
 #include "open_spiel/abseil-cpp/absl/strings/str_cat.h"
 #include "open_spiel/abseil-cpp/absl/strings/str_format.h"
@@ -254,57 +253,17 @@ double CCEDist(const Game& game, const NormalFormCorrelationDevice& mu) {
   }
 }
 
-CorrDistInfo CCEDist(
-    const Game& game, const CorrelationDevice& mu, int player,
-    const float prob_cut_threshold) {
+std::vector<double> CCEDistPerPlayer(const Game& game,
+                                     const CorrelationDevice& mu) {
   // Check for proper probability distribution.
   CheckCorrelationDeviceProbDist(mu);
+
   CorrDistConfig config;
+
+  std::vector<double> deviation_incentives(game.NumPlayers(), 0);
+
   auto cce_game =
       std::make_shared<CCEGame>(game.shared_from_this(), config, mu);
-
-  CorrDistInfo dist_info{
-    0.0,
-    std::vector<double>(1, std::numeric_limits<double>::quiet_NaN()),
-    std::vector<double>(1, 0),
-    std::vector<double>(1, 0),
-    std::vector<TabularPolicy>(1),
-    {}};
-
-  CCETabularPolicy policy;
-  std::unique_ptr<State> root = cce_game->NewInitialState();
-  TabularBestResponse best_response(
-      *cce_game, player, &policy, prob_cut_threshold);
-  // Do not populate on policy values to save unnecessary computation.
-  // dist_info.on_policy_values[0] = ExpectedReturns(
-  //     *root, policy, -1, false)[player];
-  dist_info.best_response_values[0] = best_response.Value(*root);
-  dist_info.best_response_policies[0] = best_response.GetBestResponsePolicy();
-  dist_info.deviation_incentives[0] =
-      std::max(
-          0.0,
-          dist_info.best_response_values[0] - dist_info.on_policy_values[0]);
-  dist_info.dist_value += dist_info.deviation_incentives[0];
-
-  return dist_info;
-}
-
-CorrDistInfo CCEDist(
-    const Game& game, const CorrelationDevice& mu,
-    const float prob_cut_threshold) {
-  // Check for proper probability distribution.
-  CheckCorrelationDeviceProbDist(mu);
-  CorrDistConfig config;
-  auto cce_game =
-      std::make_shared<CCEGame>(game.shared_from_this(), config, mu);
-
-  CorrDistInfo dist_info{
-    0.0,
-    std::vector<double>(game.NumPlayers(), 0),
-    std::vector<double>(game.NumPlayers(), 0),
-    std::vector<double>(game.NumPlayers(), 0),
-    std::vector<TabularPolicy>(game.NumPlayers()),
-    {}};
 
   // Note: cannot simply call NashConv here as in the other examples. Because
   // this auxiliary game does not have the "follow" action, it is possible that
@@ -316,90 +275,65 @@ CorrDistInfo CCEDist(
   CCETabularPolicy policy;
 
   std::unique_ptr<State> root = cce_game->NewInitialState();
+  std::vector<double> best_response_values(cce_game->NumPlayers());
   for (auto p = Player{0}; p < cce_game->NumPlayers(); ++p) {
-    TabularBestResponse best_response(
-        *cce_game, p, &policy, prob_cut_threshold);
-    dist_info.best_response_values[p] = best_response.Value(*root);
-    dist_info.best_response_policies[p] = best_response.GetBestResponsePolicy();
+    TabularBestResponse best_response(*cce_game, p, &policy);
+    best_response_values[p] = best_response.Value(*root);
   }
-  dist_info.on_policy_values = ExpectedReturns(*root, policy, -1, false);
-  SPIEL_CHECK_EQ(dist_info.best_response_values.size(),
-                 dist_info.on_policy_values.size());
+  std::vector<double> on_policy_values =
+      ExpectedReturns(*root, policy, -1, false);
+  SPIEL_CHECK_EQ(best_response_values.size(), on_policy_values.size());
   for (auto p = Player{0}; p < cce_game->NumPlayers(); ++p) {
     // For reasons indicated in comment at the top of this funciton, we have
     // max(0, ...) here.
-    dist_info.deviation_incentives[p] =
-        std::max(
-            0.0,
-            dist_info.best_response_values[p] - dist_info.on_policy_values[p]);
-    dist_info.dist_value += dist_info.deviation_incentives[p];
+    deviation_incentives[p] =
+        std::max(0.0, best_response_values[p] - on_policy_values[p]);
   }
-  return dist_info;
+  return deviation_incentives;
 }
 
-CorrDistInfo CEDist(const Game& game, const CorrelationDevice& mu) {
+std::vector<double> CEDistPerPlayer(const Game& game,
+                                    const CorrelationDevice& mu) {
   // Check for proper probability distribution.
   CheckCorrelationDeviceProbDist(mu);
+
+  std::vector<double> deviation_incentives(game.NumPlayers(), 0);
+
   CorrDistConfig config;
   auto ce_game = std::make_shared<CEGame>(game.shared_from_this(), config, mu);
-
-  CorrDistInfo dist_info{
-      0.0,
-      std::vector<double>(game.NumPlayers(), 0),
-      std::vector<double>(game.NumPlayers(), 0),
-      std::vector<double>(game.NumPlayers(), 0),
-      {},
-      std::vector<std::vector<TabularPolicy>>(game.NumPlayers())};
 
   CETabularPolicy policy(config);
 
   // For similar reasons as in CCEDist, we must manually do NashConv.
 
   std::unique_ptr<State> root = ce_game->NewInitialState();
+  std::vector<double> best_response_values(ce_game->NumPlayers());
   for (auto p = Player{0}; p < ce_game->NumPlayers(); ++p) {
     TabularBestResponse best_response(*ce_game, p, &policy);
-    dist_info.best_response_values[p] = best_response.Value(*root);
-
-    // This policy has all of the conditional ones built in. We have to extract
-    // one per signal by mapping back the info states.
-    TabularPolicy big_br_policy = best_response.GetBestResponsePolicy();
-
-    absl::flat_hash_map<int, TabularPolicy> extracted_policies;
-
-    for (const auto& infostate_and_probs : big_br_policy.PolicyTable()) {
-      std::string full_info_state = infostate_and_probs.first;
-      const size_t idx = full_info_state.find(config.recommendation_delimiter);
-      SPIEL_CHECK_NE(idx, std::string::npos);
-      std::vector<std::string> parts =
-          absl::StrSplit(full_info_state, config.recommendation_delimiter);
-      SPIEL_CHECK_EQ(parts.size(), 2);
-      int signal = -1;
-      SPIEL_CHECK_TRUE(absl::SimpleAtoi(parts[1], &signal));
-      SPIEL_CHECK_GE(signal, 0);
-      extracted_policies[signal].SetStatePolicy(parts[0],
-                                                infostate_and_probs.second);
-    }
-
-    for (const auto& signal_and_policy : extracted_policies) {
-      dist_info.conditional_best_response_policies[p].push_back(
-          signal_and_policy.second);
-    }
+    best_response_values[p] = best_response.Value(*root);
   }
-
-  dist_info.on_policy_values = ExpectedReturns(*root, policy, -1, false);
-  SPIEL_CHECK_EQ(dist_info.best_response_values.size(),
-                 dist_info.on_policy_values.size());
+  std::vector<double> on_policy_values =
+      ExpectedReturns(*root, policy, -1, false);
+  SPIEL_CHECK_EQ(best_response_values.size(), on_policy_values.size());
   for (auto p = Player{0}; p < ce_game->NumPlayers(); ++p) {
     // For reasons indicated in comment at the top of this funciton, we have
     // max(0, ...) here.
-    dist_info.deviation_incentives[p] =
-        std::max(
-            0.0,
-            dist_info.best_response_values[p] - dist_info.on_policy_values[p]);
-    dist_info.dist_value += dist_info.deviation_incentives[p];
+    deviation_incentives[p] =
+        std::max(0.0, best_response_values[p] - on_policy_values[p]);
   }
+  return deviation_incentives;
+}
 
-  return dist_info;
+double CCEDist(const Game& game, const CorrelationDevice& mu) {
+  std::vector<double> deviation_incentives = CCEDistPerPlayer(game, mu);
+  return std::accumulate(deviation_incentives.begin(),
+                         deviation_incentives.end(), 0.0);
+}
+
+double CEDist(const Game& game, const CorrelationDevice& mu) {
+  std::vector<double> deviation_incentives = CEDistPerPlayer(game, mu);
+  return std::accumulate(deviation_incentives.begin(),
+                         deviation_incentives.end(), 0.0);
 }
 
 }  // namespace algorithms

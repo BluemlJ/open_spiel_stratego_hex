@@ -40,6 +40,7 @@ inline constexpr int NumPlayers() { return 2; }
 inline constexpr double LossUtility() { return -1; }
 inline constexpr double DrawUtility() { return 0; }
 inline constexpr double WinUtility() { return 1; }
+inline constexpr int BoardSize() { return 8; }
 
 // See action encoding below.
 inline constexpr int NumDistinctActions() { return 4672; }
@@ -52,7 +53,7 @@ inline const std::vector<int>& ObservationTensorShape() {
       13 /* piece types * colours + empty */ + 1 /* repetition count */ +
           1 /* side to move */ + 1 /* irreversible move counter */ +
           4 /* castling rights */,
-      kMaxBoardSize, kMaxBoardSize};
+      BoardSize(), BoardSize()};
   return shape;
 }
 
@@ -109,15 +110,15 @@ inline void SetField(int offset, int length, uint8_t value, Action* action) {
 
 // Returns index (0 ... BoardSize*BoardSize-1) of a square
 // ({0, 0} ... {BoardSize-1, BoardSize-1}).
-inline uint8_t SquareToIndex(const Square& square, int board_size) {
-  return square.y * board_size + square.x;
+inline uint8_t SquareToIndex(const Square& square) {
+  return square.y * BoardSize() + square.x;
 }
 
 // Returns square ({0, 0} ... {BoardSize-1, BoardSize-1}) from an index
 // (0 ... BoardSize*BoardSize-1).
-inline Square IndexToSquare(uint8_t index, int board_size) {
-  return Square{static_cast<int8_t>(index % board_size),
-                static_cast<int8_t>(index / board_size)};
+inline Square IndexToSquare(uint8_t index) {
+  return Square{static_cast<int8_t>(index % BoardSize()),
+                static_cast<int8_t>(index / BoardSize())};
 }
 
 int EncodeMove(const Square& from_square, int destination_index, int board_size,
@@ -129,12 +130,12 @@ int8_t ReflectRank(Color to_play, int board_size, int8_t rank);
 
 Color PlayerToColor(Player p);
 
-Action MoveToAction(const Move& move, int board_size = kDefaultBoardSize);
+Action MoveToAction(const Move& move);
 
 std::pair<Square, int> ActionToDestination(int action, int board_size,
                                            int num_actions_destinations);
 
-Move ActionToMove(const Action& action, const ChessBoard& board);
+Move ActionToMove(const Action& action, const StandardChessBoard& board);
 
 // State of an in-play game.
 class ChessState : public State {
@@ -152,6 +153,7 @@ class ChessState : public State {
   Player CurrentPlayer() const override {
     return IsTerminal() ? kTerminalPlayerId : ColorToPlayer(Board().ToPlay());
   }
+  
   std::vector<Action> LegalActions() const override;
   std::string ActionToString(Player player, Action action) const override;
   std::string ToString() const override;
@@ -169,24 +171,15 @@ class ChessState : public State {
   void UndoAction(Player player, Action action) override;
 
   // Current board.
-  ChessBoard& Board() { return current_board_; }
-  const ChessBoard& Board() const { return current_board_; }
-  int BoardSize() const { return current_board_.BoardSize(); }
+  StandardChessBoard& Board() { return current_board_; }
+  const StandardChessBoard& Board() const { return current_board_; }
 
   // Starting board.
-  ChessBoard& StartBoard() { return start_board_; }
-  const ChessBoard& StartBoard() const { return start_board_; }
+  StandardChessBoard& StartBoard() { return start_board_; }
+  const StandardChessBoard& StartBoard() const { return start_board_; }
 
   std::vector<Move>& MovesHistory() { return moves_history_; }
   const std::vector<Move>& MovesHistory() const { return moves_history_; }
-
-  // A prettier board string.
-  std::string DebugString() { return current_board_.DebugString(); }
-
-  // Returns an action parsed from standard algebraic notation or long
-  // algebraic notation (using ChessBoard::ParseMove), or kInvalidAction if
-  // the parsing fails.
-  Action ParseMoveToAction(const std::string& move_str) const;
 
  protected:
   void DoApplyAction(Action action) override;
@@ -209,9 +202,9 @@ class ChessState : public State {
   std::vector<Move> moves_history_;
   // We store the start board for history to support games not starting
   // from the start position.
-  ChessBoard start_board_;
+  StandardChessBoard start_board_;
   // We store the current board position as an optimization.
-  ChessBoard current_board_;
+  StandardChessBoard current_board_;
 
   // RepetitionTable records how many times the given hash exists in the history
   // stack (including the current board).

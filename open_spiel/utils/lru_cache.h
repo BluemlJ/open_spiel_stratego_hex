@@ -101,7 +101,7 @@ class LRUCache {  // Least Recently Used Cache.
     auto pos = map_.find(key);
     if (pos == map_.end()) {  // Not found.
       misses_ += 1;
-      return absl::nullopt;
+      return std::nullopt;
     } else {  // Found, move it to the front, and return the value.
       hits_ += 1;
       order_.erase(pos->second.order_iterator);

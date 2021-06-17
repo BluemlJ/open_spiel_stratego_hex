@@ -57,7 +57,7 @@ class ThreadedQueue {
     absl::MutexLock lock(&m_);
     while (q_.empty()) {
       if (absl::Now() > deadline || block_new_values_) {
-        return absl::nullopt;
+        return std::nullopt;
       }
       cv_.WaitWithDeadline(&m_, deadline);
     }

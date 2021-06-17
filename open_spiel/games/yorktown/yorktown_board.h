@@ -25,8 +25,7 @@
 #include "open_spiel/games/chess/chess_common.h"
 #include "open_spiel/spiel_utils.h"
 
-// This board method is based on the chess_board version of open_spiel. I uses the same square representation
-// as well as the methods to calculate indices and destinations
+// This board method is based on the chess_board version for open_spiel
 
 namespace open_spiel {
 namespace yorktown {
@@ -35,9 +34,9 @@ using chess_common::Offset;
 using chess_common::Square;
 
 // This method is similar to chess_common::SquareToString. The only difference
-// is that we add 1 to x in case of j to get k -> a-k without j which is a common notation for Stratego
+// is that we add 1 to x in case of j to get k -> a-k without j
 inline std::string SquareToStrategoString(const Square& square){
-  if (square == chess_common::kInvalidSquare) {
+  if (square == chess_common::InvalidSquare()) {
     return "None";
   } else {
     std::string s;
@@ -96,8 +95,7 @@ static inline constexpr std::array<PieceType, 12> kPieceTypes = {
 
 
 // In case all the pieces are represented in the same plane, these values are
-// used to represent each piece type. 
-// Note that this numbers do not indicate value or probability.
+// used to represent each piece type.
 static inline constexpr std::array<float, 12> kPieceRepresentation = {
     {1, 0.55, 0.5, 0.45, 0.4, 0.35, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05}};
 
@@ -107,12 +105,12 @@ static inline constexpr std::array<float, 12> kPieceRepresentation = {
 absl::optional<PieceType> PieceTypeFromChar(char c);
 absl::optional<PieceType> PieceTypeFromStraDos(char c);
 
-// Converts piece type to character strings - "F", "B", "S", "1" - "0".
+// Converts piece type to one character strings - "F", "B", "S", "1" - "0".
 // p must be one of the enumerator values of PieceType.
 std::string PieceTypeToString(PieceType p);
 std::string PieceTypeToStradosString(PieceType p, Color c);
 
-// default struct for pieces with one color and type and bool giving information
+// default struct for pieces with one color and type abd a bool giving information
 // about the visibility of this piece
 struct Piece {
   bool operator==(const Piece& other) const {
@@ -121,10 +119,9 @@ struct Piece {
 
   bool operator!=(const Piece& other) const { return !(*this == other); }
 
-  // A human readable string representation like "B7" for "Blue Captain (Rank 7)"
-  // visibility is indicated by the case of the letter -> "B" means hidden, "b" open/visible
+  // A human readable string representation like "B7"
   std::string ToString(Color c = Color::kEmpty) const;
-  // A string representation from the StaDos notation scheme "N" for "Blue Captain"
+  // A string representation from the StaDos notation scheme "N"
   std::string ToStraDosString(Color c = Color::kEmpty) const;
 
   Color color;
@@ -149,9 +146,8 @@ inline absl::optional<int8_t> ParseRank(char c) {
   if (c >= '1' && c <= ':') return c - '1';
   return std::nullopt;
 }
-
 // My Board is defined 10x10 and has file A to K without J
-// This gives you the file from 0 to 9 
+// This gives yout the file from 0 to 9 
 inline absl::optional<int8_t> ParseFile(char c) {
   if (c == 'k') c = c-1;
   if (c >= 'a' && c <= 'j') return c - 'a';
@@ -196,11 +192,10 @@ struct Move {
   // Gives you a string representation in form of "a4a5". It is based on the
   // simple long algebraic notation used in chess
   std::string ToLANMove() const;
-  // Gives you a more complex string representation in form of "a4-a5". It is based on the
+  // Gives you a more complex string representation in form of "a4[3]-a5". It is based on the
   // long algebraic notation used in chess with more informations
   std::string ToComplexLANMove(const YorktownBoard<10>& board) const;
-  // Gives you a string representation used to generate xml files, used by Strados2
-  // Hint: Do not use this representation of a move, it is not really readable
+  // Gives you a string representation used to generate xml files 
   std::string ToStraDosMove() const;
 
   bool operator==(const Move& other) const {
@@ -218,17 +213,10 @@ class YorktownBoard {
  public:
   YorktownBoard();
 
-  /* This method generates a YorktownBoard from a StraDos3 string
-  * StraDos3 is a new notation scheme for Stratego/Yorktown matches. It is a combination
-  * of the Strados2 system used by the website Gravon and the fen notation used in chess. 
-  * A Strados3 string has 3 parts, the piece configuration of the current board situation
-  * as a string of 100 characters each representing a square. The second part is the current player
-  * and the third part the ply count or the current situation.
-  * E.g. "FEBMBEFEEFBGIBHIBEDBGJDDDHCGJGDHDLIFKDDHAA__AA__AAAA__AA__AASTQQNSQPTSUPWPVRPXPURNQONNQSNVPTNQRRTYUP r 0" 
-  */
+  // This method generates a YorktownBoard from a StraDos3 string
   static absl::optional<YorktownBoard> BoardFromStraDos3(const std::string& straDos);
 
-  // "at" is a small helping method getting a piece from a given square
+  // at is a small helping method getting a piece from a given square
   const Piece& at(Square sq) const { return board_[SquareToIndex_(sq)]; }
   
   // Setter method for a square
@@ -245,10 +233,10 @@ class YorktownBoard {
   // set the active player/color to c
   void SetToPlay(Color c);
  
-  // setter for the movenumber/ply count
+  // setter for the movenumber
   int32_t Movenumber() const { return move_number_; }
 
-  // Find the locations of any piece of the given type, color and visibility, or InvalidSquare().
+  // Find the locations of any piece of the given type and color and visibility, or InvalidSquare().
   std::vector<Square> find(const Piece& piece) const;
 
   // given a square, gives you an array with the 4 neighbour pieces.
@@ -272,9 +260,15 @@ class YorktownBoard {
     return found;
   }
 
-  // Parses a move from a notation scheme of choice, e.g. LAN, complex LAN or StraDos string (
+  // Does either side have sufficient material to win?
+  // Rules say it must be impossible to win even with "most unskilled"
+  // counterplay. This can happen if the flag is no more reachable for both players.
+  bool HasSufficientMaterial() const;
+
+  // Parses a move from a long algebraic notation, complex LAN or StraDos string (
   // see below).
   absl::optional<Move> ParseMove(const std::string& move) const;
+
   absl::optional<Move> ParseLANMove(const std::string& move) const;
   absl::optional<Move> ParseComplexLANMove(const std::string& move) const;
   absl::optional<Move> ParseStraDosMove(const std::string& move) const;
@@ -282,7 +276,7 @@ class YorktownBoard {
   // Applies a move on the board. Checks if it is an attack move and handles it
   // Sets visibility if a piece attacks or is attacked.
 
-  // Applies the given move
+  // TODO: Open problem with Informationleakes
   void ApplyMove(const Move& move);
 
   // Checks if a given square is in the range of the board
@@ -290,37 +284,31 @@ class YorktownBoard {
     return sq.x >= 0 && sq.x < kBoardSize && sq.y >= 0 && sq.y < kBoardSize;
   }
 
-  // Checks Visibility of a given square (empty fields are visible/open)
   bool IsVisible(const Square& sq) const {
     const Piece& piece = board_[SquareToIndex_(sq)];
     return piece.isVisible;
   }
-
-  // Checks if a given square is empty
+  
   bool IsEmpty(const Square& sq) const {
     const Piece& piece = board_[SquareToIndex_(sq)];
     return piece.type == PieceType::kEmpty;
   }
 
-  // Checks if a given square is a lake
   bool IsLake(const Square& sq) const {
     const Piece& piece = board_[SquareToIndex_(sq)];
     return piece.type == PieceType::kLake;
   }
 
-  // Checks if the given square is captured by an opponents piece
   bool IsEnemy(const Square& sq, Color our_color) const {
     const Piece& piece = board_[SquareToIndex_(sq)];
     return piece.type != PieceType::kEmpty && piece.type != PieceType::kLake && piece.color != our_color;
   }
 
-  // Checks if the given square is captured by an own piece 
   bool IsFriendly(const Square& sq, Color our_color) const {
     const Piece& piece = board_[SquareToIndex_(sq)];
     return piece.color == our_color;
   }
 
-  // Combination of IsEnemy and IsEmpty 
   bool IsEmptyOrEnemy(const Square& sq, Color our_color) const {
     const Piece& piece = board_[SquareToIndex_(sq)];
     return IsEmpty(sq) == true || IsEnemy(sq, our_color) == true;
@@ -331,11 +319,8 @@ class YorktownBoard {
 
   uint64_t HashValue() const { return zobrist_hash_; }
 
-  // Arrays of all livingPieces (all pieces still on Board) and all captured pieces for the current match
   std::array<int, kPieceTypes.size()*2> CapturedPieces() const { return capturedPieces_; }
   std::array<int, kPieceTypes.size()*2> LivingPieces() const { return livingPieces_; }
-  
-  // setter for the LivingPieces array
   void SetLivingPieces(std::array<int, kPieceTypes.size()*2> amounts){
     livingPieces_ = amounts;
   }
@@ -346,7 +331,7 @@ class YorktownBoard {
   // return string to the board without information like whos turn or which move it is.
   std::string DebugString(Color c = Color::kEmpty, bool onlyBoard = false) const;
 
-  // The same method as DebugString but with Strados notation instead of a better human readable notation scheme
+  // The same method as DebugString but with Strados notation instead of human readable
   std::string DebugStringStraDos(Color c = Color::kEmpty, bool onlyBoard = false) const;
 
   // Return the piece-configuration as a string from player/color c's perspective
@@ -381,7 +366,6 @@ class YorktownBoard {
   // Setter for the move_number
   void SetMovenumber(int move_number);
 
-  // updates capturedPieces as well as livingPieces
   void capturePiece(Piece piece);
 
 
@@ -390,7 +374,6 @@ class YorktownBoard {
   std::array<int, kPieceTypes.size()*2> capturedPieces_ = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
   std::array<int, kPieceTypes.size()*2> livingPieces_ = {1,1,8,5,4,4,4,3,2,1,1,6,1,1,8,5,4,4,4,3,2,1,1,6};
 
-  
   // The active player/color
   Color to_play_;
  
@@ -412,6 +395,7 @@ inline std::ostream& operator<<(std::ostream& stream, const PieceType& pt) {
 // A little method generating a "default" or more specific a fixed board to test on
 YorktownBoard<10> MakeDefaultBoard();
 YorktownBoard<10> MakeDefaultBoard(std::string strados3);
+YorktownBoard<10> MakeBarrageBoard(std::string strados3);
 
 }  // namespace yorktown
 }  // namespace open_spiel

@@ -30,10 +30,10 @@
 namespace open_spiel {
 namespace chess {
 
-using chess_common::kInvalidSquare;  // NOLINT
+using chess_common::InvalidSquare;
 using chess_common::Offset;
 using chess_common::Square;
-using chess_common::SquareToString;  // NOLINT
+using chess_common::SquareToString;
 
 template <std::size_t... Dims>
 using ZobristTableU64 = chess_common::ZobristTable<uint64_t, Dims...>;
@@ -106,12 +106,12 @@ inline std::ostream& operator<<(std::ostream& stream, const Piece& p) {
 
 inline absl::optional<int8_t> ParseRank(char c) {
   if (c >= '1' && c <= '8') return c - '1';
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 inline absl::optional<int8_t> ParseFile(char c) {
   if (c >= 'a' && c <= 'h') return c - 'a';
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 // Maps y = [0, 7] to rank ["1", "8"].
@@ -130,11 +130,11 @@ inline constexpr std::array<Offset, 8> kKnightOffsets = {
 
 absl::optional<Square> SquareFromString(const std::string& s);
 
-bool IsLongDiagonal(const chess::Square& from_sq, const chess::Square& to_sq,
-                    int board_size);
-
 // Forward declare ChessBoard here because it's needed in Move::ToSAN.
+template <uint32_t kBoardSize>
 class ChessBoard;
+
+using StandardChessBoard = ChessBoard<8>;
 
 struct Move {
   Square from;
@@ -206,7 +206,7 @@ struct Move {
   //              resulting in checkmate in a surprisingly good move)
   // * O-O-O!!N+/- (a surprisingly good long castle that is a theoretical
   //                novelty that gives white a clear but not winning advantage)
-  std::string ToSAN(const ChessBoard& board) const;
+  std::string ToSAN(const StandardChessBoard& board) const;
 
   bool operator==(const Move& other) const {
     return from == other.from && to == other.to && piece == other.piece &&
@@ -223,36 +223,20 @@ bool IsMoveCharacter(char c);
 
 std::pair<std::string, std::string> SplitAnnotations(const std::string& move);
 
-inline constexpr int kMaxBoardSize = 8;
-inline constexpr int kDefaultBoardSize = 8;
-inline constexpr int k2dMaxBoardSize = kMaxBoardSize * kMaxBoardSize;
-inline const std::string kDefaultStandardFEN =
-    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-inline const std::string kDefaultSmallFEN = "r1kr/pppp/PPPP/R1KR w - - 0 1";
-
-using ObservationTable = std::array<bool, k2dMaxBoardSize>;
-
-enum PseudoLegalMoveSettings {
-  kBreachEnemyPieces,
-  kAcknowledgeEnemyPieces,
-};
-
+template <uint32_t kBoardSize>
 class ChessBoard {
  public:
-  ChessBoard(int board_size = kDefaultBoardSize,
-             bool king_in_check_allowed = false);
+  ChessBoard();
 
-  // Constructs a chess board at the given position in Forsyth-Edwards Notation.
-  // https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation
-  static absl::optional<ChessBoard> BoardFromFEN(
-      const std::string& fen, int board_size = 8,
-      bool king_in_check_allowed = false);
+  static absl::optional<ChessBoard> BoardFromFEN(const std::string& fen);
 
   const Piece& at(Square sq) const { return board_[SquareToIndex_(sq)]; }
 
   void set_square(Square sq, Piece p);
 
-  const std::array<Piece, k2dMaxBoardSize>& pieces() const { return board_; }
+  const std::array<Piece, kBoardSize * kBoardSize>& pieces() const {
+    return board_;
+  }
 
   Color ToPlay() const { return to_play_; }
   void SetToPlay(Color c);
@@ -267,7 +251,7 @@ class ChessBoard {
   void SetCastlingRight(Color side, CastlingDirection direction,
                         bool can_castle);
 
-  // Find the location of any one piece of the given type, or kInvalidSquare.
+  // Find the location of any one piece of the given type, or InvalidSquare().
   Square find(const Piece& piece) const;
 
   // Pseudo-legal moves are moves that may leave the king in check, but are
@@ -277,39 +261,14 @@ class ChessBoard {
   // For performance reasons, we do not guarantee that no more moves will be
   // generated if yield returns false. It is only for optimization.
   using MoveYieldFn = std::function<bool(const Move&)>;
-  void GenerateLegalMoves(const MoveYieldFn& yield) const {
-    GenerateLegalMoves(yield, to_play_);
-  }
-  void GenerateLegalMoves(const MoveYieldFn& yield, Color color) const;
-  void GeneratePseudoLegalMoves(
-      const MoveYieldFn& yield, Color color,
-      PseudoLegalMoveSettings settings =
-          PseudoLegalMoveSettings::kAcknowledgeEnemyPieces) const;
-
-  // Optimization for computing number of pawn tries for kriegspiel
-  void GenerateLegalPawnCaptures(const MoveYieldFn& yield, Color color) const;
-  void GeneratePseudoLegalPawnCaptures(
-      const MoveYieldFn& yield, Color color,
-      PseudoLegalMoveSettings settings =
-          PseudoLegalMoveSettings::kAcknowledgeEnemyPieces) const;
+  void GenerateLegalMoves(const MoveYieldFn& yield) const;
+  void GeneratePseudoLegalMoves(const MoveYieldFn& yield) const;
 
   bool HasLegalMoves() const {
     bool found = false;
     GenerateLegalMoves([&found](const Move&) {
       found = true;
       return false;  // We don't need any more moves.
-    });
-    return found;
-  }
-
-  bool IsMoveLegal(const Move& tested_move) const {
-    bool found = false;
-    GenerateLegalMoves([&found, &tested_move](const Move& found_move) {
-      if (tested_move == found_move) {
-        found = true;
-        return false;  // We don't need any more moves.
-      }
-      return true;
     });
     return found;
   }
@@ -329,19 +288,17 @@ class ChessBoard {
   bool HasSufficientMaterial() const;
 
   // Parses a move in standard algebraic notation or long algebraic notation (
-  // see below). Returns absl::nullopt on failure.
+  // see below).
   absl::optional<Move> ParseMove(const std::string& move) const;
 
   // Parses a move in standard algebraic notation as defined by FIDE.
-  // https://en.wikipedia.org/wiki/Algebraic_notation_(chess).
-  // Returns absl::nullopt on failure.
+  // https://en.wikipedia.org/wiki/Algebraic_notation_(chess)
   absl::optional<Move> ParseSANMove(const std::string& move) const;
 
   // Parses a move in long algebraic notation.
   // Long algebraic notation is not standardized and there are many variants,
   // but the one we care about is of the form "e2e4" and "f7f8q". This is the
   // form used by chess engine text protocols that are of interest to us.
-  // Returns absl::nullopt on failure.
   absl::optional<Move> ParseLANMove(const std::string& move) const;
 
   void ApplyMove(const Move& move);
@@ -351,8 +308,8 @@ class ChessBoard {
   // for actually applying the move.
   bool TestApplyMove(const Move& move);
 
-  bool InBoardArea(const Square& sq) const {
-    return sq.x >= 0 && sq.x < board_size_ && sq.y >= 0 && sq.y < board_size_;
+  static bool InBoardArea(const Square& sq) {
+    return sq.x >= 0 && sq.x < kBoardSize && sq.y >= 0 && sq.y < kBoardSize;
   }
 
   bool IsEmpty(const Square& sq) const {
@@ -376,15 +333,15 @@ class ChessBoard {
   }
 
   /* Whether the square is on the pawn starting rank for our_color. */
-  bool IsPawnStartingRank(const Square& sq, Color our_color) const {
+  static bool IsPawnStartingRank(const Square& sq, Color our_color) {
     return ((our_color == Color::kWhite && sq.y == 1) ||
-            (our_color == Color::kBlack && sq.y == (board_size_ - 2)));
+            (our_color == Color::kBlack && sq.y == (kBoardSize - 2)));
   }
 
-  bool IsPawnPromotionRank(const Square& sq) const {
+  static bool IsPawnPromotionRank(const Square& sq) {
     // No need to test for color here because a pawn can't be on the "wrong"
     // promotion rank.
-    return sq.y == 0 || sq.y == (board_size_ - 1);
+    return sq.y == 0 || sq.y == (kBoardSize - 1);
   }
 
   /* Whether the sq is under attack by the opponent. */
@@ -394,9 +351,7 @@ class ChessBoard {
     return UnderAttack(find(Piece{to_play_, PieceType::kKing}), to_play_);
   }
 
-  int BoardSize() const { return board_size_; }
-
-  bool KingInCheckAllowed() const { return king_in_check_allowed_; }
+  int BoardSize() const { return kBoardSize; }
 
   uint64_t HashValue() const { return zobrist_hash_; }
 
@@ -404,27 +359,10 @@ class ChessBoard {
 
   std::string ToUnicodeString() const;
 
-  // Constructs a string describing the chess board position in Forsyth-Edwards
-  // Notation. https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation
   std::string ToFEN() const;
 
-  /* Constructs a string describing the dark chess board position in a notation
-   * similar to Forsyth-Edwards Notation.
-   * https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation
-   *
-   * There are several key differences to FEN:
-   * 1) Only observable squares are shown. Squares invisible to the observer are
-   *    represented by the character '?'
-   * 2) Only observer's castling rights are shown
-   * 3) en passant square is only shown if the observer is capable of performing
-   *    an en passant capture
-   *
-   */
-  std::string ToDarkFEN(const ObservationTable& observability_table,
-                        Color color) const;
-
  private:
-  size_t SquareToIndex_(Square sq) const { return sq.y * board_size_ + sq.x; }
+  static size_t SquareToIndex_(Square sq) { return sq.y * kBoardSize + sq.x; }
 
   /* Generate*Destinations functions call yield(sq) for every potential
    * destination generated.
@@ -455,22 +393,18 @@ class ChessBoard {
 
   template <typename YieldFn>
   void GenerateCastlingDestinations_(Square sq, Color color,
-                                     PseudoLegalMoveSettings settings,
                                      const YieldFn& yield) const;
 
   template <typename YieldFn>
   void GenerateQueenDestinations_(Square sq, Color color,
-                                  PseudoLegalMoveSettings settings,
                                   const YieldFn& yield) const;
 
   template <typename YieldFn>
   void GenerateRookDestinations_(Square sq, Color color,
-                                 PseudoLegalMoveSettings settings,
                                  const YieldFn& yield) const;
 
   template <typename YieldFn>
   void GenerateBishopDestinations_(Square sq, Color color,
-                                   PseudoLegalMoveSettings settings,
                                    const YieldFn& yield) const;
 
   template <typename YieldFn>
@@ -480,29 +414,22 @@ class ChessBoard {
   template <typename YieldFn>
   // Pawn moves without captures.
   void GeneratePawnDestinations_(Square sq, Color color,
-                                 PseudoLegalMoveSettings settings,
                                  const YieldFn& yield) const;
 
   template <typename YieldFn>
   // Pawn diagonal capture destinations, with or without en passant.
-  void GeneratePawnCaptureDestinations_(Square sq, Color color,
-                                        PseudoLegalMoveSettings settings,
-                                        bool include_ep,
+  void GeneratePawnCaptureDestinations_(Square sq, Color color, bool include_ep,
                                         const YieldFn& yield) const;
 
   // Helper function.
   template <typename YieldFn>
-  void GenerateRayDestinations_(Square sq, Color color,
-                                PseudoLegalMoveSettings settings,
-                                Offset offset_step, const YieldFn& yield) const;
+  void GenerateRayDestinations_(Square sq, Color color, Offset offset_step,
+                                const YieldFn& yield) const;
 
   void SetIrreversibleMoveCounter(int c);
   void SetMovenumber(int move_number);
 
-  int board_size_;
-  bool king_in_check_allowed_;
-
-  std::array<Piece, k2dMaxBoardSize> board_;
+  std::array<Piece, kBoardSize * kBoardSize> board_;
   Color to_play_;
   Square ep_square_;
   int32_t irreversible_move_counter_;
@@ -519,7 +446,9 @@ class ChessBoard {
   uint64_t zobrist_hash_;
 };
 
-inline std::ostream& operator<<(std::ostream& stream, const ChessBoard& board) {
+template <uint32_t kBoardSize>
+inline std::ostream& operator<<(std::ostream& stream,
+                                const ChessBoard<kBoardSize>& board) {
   return stream << board.DebugString();
 }
 
@@ -527,8 +456,7 @@ inline std::ostream& operator<<(std::ostream& stream, const PieceType& pt) {
   return stream << PieceTypeToString(pt);
 }
 
-ChessBoard MakeDefaultBoard();
-std::string DefaultFen(int board_size);
+StandardChessBoard MakeDefaultBoard();
 
 }  // namespace chess
 }  // namespace open_spiel

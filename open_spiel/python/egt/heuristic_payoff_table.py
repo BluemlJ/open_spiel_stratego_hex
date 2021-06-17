@@ -22,6 +22,7 @@ import abc
 import collections
 
 import numpy as np
+import six
 
 from open_spiel.python.egt import utils
 
@@ -148,9 +149,9 @@ def from_matrix_game(matrix_game):
   if not isinstance(matrix_game, np.ndarray):
     raise ValueError("The matrix game should be a numpy array, not a {}".format(
         type(matrix_game)))
-  num_strats_per_population = (
-      utils.get_num_strats_per_population(
-          payoff_tables=[matrix_game], payoffs_are_hpt_format=False))
+  num_strats_per_population =\
+    utils.get_num_strats_per_population(payoff_tables=[matrix_game],
+                                        payoffs_are_hpt_format=False)
   assert len(num_strats_per_population) == 2
   assert num_strats_per_population[0] == num_strats_per_population[1]
   num_strategies = num_strats_per_population[0]
@@ -258,7 +259,8 @@ def from_elo_scores(elo_ratings, num_agents=2):
   return NumpyPayoffTable(np.vstack(hpt_rows))
 
 
-class _PayoffTableInterface(metaclass=abc.ABCMeta):
+@six.add_metaclass(abc.ABCMeta)
+class _PayoffTableInterface(object):
   """An interface for the PayoffTable classes."""
 
   @abc.abstractmethod

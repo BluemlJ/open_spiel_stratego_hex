@@ -12,6 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # Lint as: python3
 """The setup script for setuptools.
 
@@ -74,6 +88,16 @@ class BuildExt(build_ext):
       ) from e
     print("Found C++ compiler: {}".format(cxx))
 
+    try:
+      subprocess.check_call(["python3-config", "--help"])
+    except OSError as e:
+      ext_names = ", ".join(e.name for e in self.extensions)
+      raise RuntimeError(
+          "Python3 development files (python3-dev) must be installed to build"
+          + "the following extensions: {}".format(ext_names)
+      ) from e
+    print("Found python3 dev files.")
+
   def build_extension(self, ext):
     extension_dir = os.path.abspath(
         os.path.dirname(self.get_ext_fullpath(ext.name)))
@@ -81,12 +105,6 @@ class BuildExt(build_ext):
     if os.environ.get("CXX") is not None:
       cxx = os.environ.get("CXX")
     env = os.environ.copy()
-    # Uncomment when releasing to ensure optional dependencies are built when
-    # users download the source and build the pip package. Leave them commented
-    # out for non-releases because we use nox in our CI testing scripts, which
-    # don't use optional dependencies.
-    # env["OPEN_SPIEL_BUILD_WITH_ACPC"] = "ON"
-    # env["OPEN_SPIEL_BUILD_WITH_HANABI"] = "ON"
     cmake_args = [
         f"-DPython3_EXECUTABLE={sys.executable}",
         f"-DCMAKE_CXX_COMPILER={cxx}",
@@ -136,7 +154,7 @@ else:
 
 setuptools.setup(
     name="open_spiel",
-    version="0.3.1",
+    version="0.2.0rc4",
     license="Apache 2.0",
     author="The OpenSpiel authors",
     author_email="open_spiel@google.com",
