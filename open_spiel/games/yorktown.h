@@ -44,8 +44,6 @@ inline constexpr int kNumActionDestinations = 36;
 //NumActionDestinations * possible Fields (for simplicity 100)
 inline constexpr int kNumDistinctActions = 3600;
 
-inline constexpr char* kInitPos = "FEBMBEFEEFBGIBHIBEDBGJDDDHCGJGDHDLIFKDDHAA__AA__AAAA__AA__AASTQQNSQPTSUPWPVRPXPURNQONNQSNVPTNQRRTYUP r 0";
-
 // The shape of my observationTensor
 inline const std::vector<int>& ObservationTensorShape() {
   static std::vector<int> shape{
@@ -244,7 +242,7 @@ class YorktownGame : public Game {
   }
   
   std::unique_ptr<State> NewInitialState() const override {
-    return absl::make_unique<YorktownState>(shared_from_this(), kInitPos);
+    return absl::make_unique<YorktownState>(shared_from_this(), "FEBMBEFEEFBGIBHIBEDBGJDDDHCGJGDHDLIFKDDHAA__AA__AAAA__AA__AASTQQNSQPTSUPWPVRPXPURNQONNQSNVPTNQRRTYUP r 0");
   }
 
   std::unique_ptr<State> DeserializeState(
