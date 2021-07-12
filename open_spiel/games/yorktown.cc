@@ -49,7 +49,7 @@ const GameType kGameType{/*short_name=*/"yorktown",
                          /*provides_observation_tensor=*/true,
                          /*parameter_specification=*/
                          {{"players", GameParameter(NumPlayers())},
-                         {"strados3", GameParameter(kInitPos)}}};
+                         {"strados3", GameParameter("FEBMBEFEEFBGIBHIBEDBGJDDDHCGJGDHDLIFKDDHAA__AA__AAAA__AA__AASTQQNSQPTSUPWPVRPXPURNQONNQSNVPTNQRRTYUP r 0")}}};
 
 std::shared_ptr<const Game> Factory(const GameParameters& params) {
   return std::shared_ptr<const Game>(new YorktownGame(params));
