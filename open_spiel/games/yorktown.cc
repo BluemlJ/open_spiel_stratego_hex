@@ -204,7 +204,12 @@ void YorktownState::MaybeGenerateLegalActions() const {
     Board().GenerateLegalMoves([this](const Move& move) -> bool {
       //std::cout << move.ToString() << std::endl;
       //std::cout << move.ToLANMove() << std::endl;
-      cached_legal_actions_->push_back(MoveToAction(move));
+      int n = MovesHistory().size();
+      if( n>7 && move ==  MovesHistory()[n-2] && move == MovesHistory()[n-6]){
+
+      }else{
+          cached_legal_actions_->push_back(MoveToAction(move));
+      }
       return true;
     });
     absl::c_sort(*cached_legal_actions_);
