@@ -204,8 +204,8 @@ void YorktownState::MaybeGenerateLegalActions() const {
     Board().GenerateLegalMoves([this](const Move& move) -> bool {
       //std::cout << move.ToString() << std::endl;
       //std::cout << move.ToLANMove() << std::endl;
-      int n = MovesHistory().size();
-      const int n = MovesHistory().size();
+    int n = MovesHistory().size();
+    const int n = MovesHistory().size();
     // avoid loops by skipping moves which appeared two moves and six moves before.
     if( (n <= 7 || move !=  MovesHistory()[n-2] || move != MovesHistory()[n-6]) ){
         cached_legal_actions_->push_back(MoveToAction(move));
