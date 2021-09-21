@@ -207,7 +207,7 @@ void YorktownState::MaybeGenerateLegalActions() const {
     int n = MovesHistory().size();
     const int n = MovesHistory().size();
     // avoid loops by skipping moves which appeared two moves and six moves before.
-    if( (n <= 7 || move !=  MovesHistory()[n-2] || move != MovesHistory()[n-6]) ){
+    if( !( n > 7 && move ==  MovesHistory()[n-2] && move == MovesHistory()[n-6]) ){
         cached_legal_actions_->push_back(MoveToAction(move));
     }
     return true;
