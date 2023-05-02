@@ -374,31 +374,31 @@ std::vector<Square> YorktownBoard<kBoardSize>::find(const Piece &piece) const {
 template <uint32_t kBoardSize>
 std::array<Piece, 4> YorktownBoard<kBoardSize>::neighbours(const Square &square) const {
   std::array<Piece, 4> l = {kEmptyPiece, kEmptyPiece, kEmptyPiece, kEmptyPiece};
-  int x = square.x;
-  int y = square.y;
+  int8_t x = square.x;
+  int8_t y = square.y;
   
   if(x==0){
-      auto &piece = at(Square{x+1, y});
+      auto &piece = at(Square{int8_t(x+1), y});
       l[0] = piece;
     }else if (x==kBoardSize-1){
-      auto &piece = at(Square{x-1, y});
+      auto &piece = at(Square{int8_t(x-1), y});
       l[2] = piece;
     }else if(x>0 && x<kBoardSize-1){
-      auto &piece = at(Square{x-1, y});
-      auto &piece2 = at(Square{x+1, y});
+      auto &piece = at(Square{int8_t(x-1), y});
+      auto &piece2 = at(Square{int8_t(x+1), y});
       l[2] = piece;
       l[0] = piece2;
     }
 
   if(y==0){
-      auto &piece = at(Square{x, y+1});
+      auto &piece = at(Square{x, int8_t(y+1)});
       l[1] = piece;
     }else if (y==kBoardSize-1){
-      auto &piece = at(Square{x, y-1});
+      auto &piece = at(Square{x, int8_t(y-1)});
       l[3] = piece;
     }else if(y>0 && y<kBoardSize-1){
-      auto &piece = at(Square{x, y-1});
-      auto &piece2 = at(Square{x, y+1});
+      auto &piece = at(Square{x, int8_t(y-1)});
+      auto &piece2 = at(Square{x, int8_t(y+1)});
       l[3] = piece;
       l[1] = piece2;
     }
